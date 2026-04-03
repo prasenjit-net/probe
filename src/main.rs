@@ -2,7 +2,10 @@ mod api;
 mod auth;
 mod config;
 mod embedded;
+mod executor;
+mod models;
 mod state;
+mod storage;
 
 use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -20,8 +23,14 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!(app = %cfg.app.name, version = env!("CARGO_PKG_VERSION"), "Starting");
 
+    // ── Ensure data directories exist ─────────────────────────────────────
+    storage::ensure_dirs().await?;
+
     // ── Build shared application state ────────────────────────────────────
     let state = state::AppState::new(cfg.clone());
+
+    // ── Spawn background execution engine ─────────────────────────────────
+    executor::spawn();
 
     // ── Build Axum router ─────────────────────────────────────────────────
     let app = api::create_router(state);

@@ -1,0 +1,20 @@
+[server]
+host = "127.0.0.1"
+port = 3000
+
+[auth]
+# Plain-text password is hashed with bcrypt at startup.
+# Change these credentials before deploying to production.
+username = "admin"
+password = "admin"
+
+[session]
+# Session TTL in seconds (default: 1 hour)
+ttl_seconds = 3600
+
+[logging]
+# Accepted levels: trace, debug, info, warn, error
+level = "info"
+
+[app]
+name = "Probe"

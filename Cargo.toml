@@ -1,0 +1,27 @@
+[package]
+name = "probe"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "probe"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.8", features = ["macros"] }
+axum-extra = { version = "0.10", features = ["cookie"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+rust-embed = "8"
+mime_guess = "2"
+uuid = { version = "1", features = ["v4"] }
+bcrypt = "0.15"
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+dashmap = "6"

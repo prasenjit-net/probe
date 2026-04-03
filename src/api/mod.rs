@@ -26,16 +26,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/metrics",             get(metrics_handler::prometheus_scrape))
         // ── HTTP Requests library ─────────────────────────────────────────────
         .route("/api/requests",        get(requests::list_requests).post(requests::create_request))
-        .route("/api/requests/:id",    get(requests::get_request).put(requests::update_request).delete(requests::delete_request))
+        .route("/api/requests/{id}",    get(requests::get_request).put(requests::update_request).delete(requests::delete_request))
         // ── Test Plans ────────────────────────────────────────────────────────
         .route("/api/test-plans",      get(test_plans::list_test_plans).post(test_plans::create_test_plan))
-        .route("/api/test-plans/:id",  get(test_plans::get_test_plan).put(test_plans::update_test_plan).delete(test_plans::delete_test_plan))
+        .route("/api/test-plans/{id}",  get(test_plans::get_test_plan).put(test_plans::update_test_plan).delete(test_plans::delete_test_plan))
         // ── Executions (queue) ────────────────────────────────────────────────
         .route("/api/executions",      get(executions::list_executions).post(executions::enqueue_execution))
-        .route("/api/executions/:id",  get(executions::get_execution).delete(executions::cancel_execution))
+        .route("/api/executions/{id}",  get(executions::get_execution).delete(executions::cancel_execution))
         // ── Reports ───────────────────────────────────────────────────────────
         .route("/api/reports",         get(reports::list_reports))
-        .route("/api/reports/:id",     get(reports::get_report).delete(reports::delete_report))
+        .route("/api/reports/{id}",     get(reports::get_report).delete(reports::delete_report))
         // ── SPA fallback ──────────────────────────────────────────────────────
         .fallback(embedded::serve_static)
         // ── Global layers ─────────────────────────────────────────────────────

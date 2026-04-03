@@ -1,0 +1,21 @@
+{
+  "id": "7d916690-1dc4-4a28-8e3b-4a04889378ef",
+  "name": "todo_1",
+  "description": "",
+  "method": "GET",
+  "url": "https://jsonplaceholder.typicode.com/todos/1",
+  "headers": [],
+  "body": null,
+  "body_type": "none",
+  "assertions": [
+    {
+      "id": "dcc1ef0a-3cc4-46e3-b826-2922cea7d471",
+      "type": "status_code",
+      "operator": "equals",
+      "target": null,
+      "expected_value": "200"
+    }
+  ],
+  "created_at": "2026-04-03T06:40:00.176698Z",
+  "updated_at": "2026-04-03T06:40:00.176698Z"
+}

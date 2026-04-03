@@ -14,6 +14,7 @@ pub struct HealthResponse {
 }
 
 // Kept for optional standalone use / tests.
+#[allow(dead_code)]
 pub fn router() -> axum::Router<AppState> {
     use axum::routing::get;
     axum::Router::new().route("/health", get(health_check))

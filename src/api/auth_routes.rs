@@ -29,20 +29,6 @@ pub struct LoginResponse {
     pub message: String,
 }
 
-// ── Optional convenience routers (not used by create_router; kept for testing) ─
-
-pub fn public_router() -> axum::Router<AppState> {
-    use axum::routing::post;
-    axum::Router::new().route("/auth/login", post(login_handler))
-}
-
-pub fn protected_router() -> axum::Router<AppState> {
-    use axum::routing::{get, post};
-    axum::Router::new()
-        .route("/auth/me", get(me_handler))
-        .route("/auth/logout", post(logout_handler))
-}
-
 // ── Handlers ───────────────────────────────────────────────────────────────
 
 pub async fn login_handler(

@@ -16,6 +16,7 @@ pub struct MetricsSummary {
 }
 
 /// JSON summary endpoint – consumed by the React dashboard.
+#[allow(dead_code)]
 pub fn router() -> axum::Router<AppState> {
     use axum::routing::get;
     axum::Router::new().route("/metrics/summary", get(metrics_summary))

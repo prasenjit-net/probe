@@ -38,6 +38,7 @@ impl AppCounters {
 #[derive(Debug, Clone)]
 pub struct Session {
     pub username: String,
+    #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
 }

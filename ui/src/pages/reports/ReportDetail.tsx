@@ -11,65 +11,6 @@ const METHOD_COLORS: Record<string, string> = {
   PATCH: 'bg-orange-500', DELETE: 'bg-red-500', HEAD: 'bg-purple-500', OPTIONS: 'bg-gray-500',
 }
 
-function exportToPDF(report: ExecutionReport) {
-  const win = window.open('', '_blank')
-  if (!win) return
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const stepsHtml = report.step_results.map((step, i) => `
-    <div class="step ${step.passed ? 'pass' : 'fail'}">
-      <h3>${i + 1}. ${esc(step.request_name)} <span class="badge ${step.passed ? 'badge-pass' : 'badge-fail'}">${step.passed ? 'PASSED' : 'FAILED'}</span></h3>
-      ${step.error ? `<p class="error">Error: ${esc(step.error)}</p>` : ''}
-      <div class="row">
-        <div class="col"><h4>Request</h4>
-          <p><b>Method:</b> ${esc(step.request.method)} &nbsp; <b>URL:</b> ${esc(step.request.url)}</p>
-          ${step.request.headers.length ? `<p><b>Headers:</b> ${step.request.headers.map(h => `${esc(h.key)}: ${esc(h.value)}`).join(', ')}</p>` : ''}
-          ${step.request.body ? `<pre>${esc(step.request.body)}</pre>` : ''}
-        </div>
-        ${step.response ? `<div class="col"><h4>Response</h4>
-          <p><b>Status:</b> ${step.response.status_code} &nbsp; <b>Duration:</b> ${fmtDuration(step.response.duration_ms)}</p>
-          <pre>${esc(step.response.body.slice(0, 2000))}${step.response.body.length > 2000 ? '\n…(truncated)' : ''}</pre>
-        </div>` : ''}
-      </div>
-      ${step.assertion_results.length ? `
-        <h4>Assertions</h4>
-        <table><tr><th>Type</th><th>Operator</th><th>Target</th><th>Expected</th><th>Actual</th><th>Result</th></tr>
-        ${step.assertion_results.map(a => `<tr class="${a.passed ? 'a-pass' : 'a-fail'}">
-          <td>${esc(a.type)}</td><td>${esc(a.operator)}</td><td>${esc(a.target ?? '')}</td>
-          <td>${esc(a.expected)}</td><td>${esc(a.actual)}</td>
-          <td>${a.passed ? '✓ Pass' : '✗ Fail'}</td>
-        </tr>`).join('')}</table>` : ''}
-    </div>
-  `).join('')
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
-  <title>Report: ${esc(report.test_plan_name)}</title>
-  <style>
-    body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#111;}
-    h1{font-size:20px;}h2{font-size:16px;}h3{font-size:14px;margin-top:16px;}h4{font-size:12px;color:#555;margin:8px 0 4px;}
-    .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;}
-    .badge-pass{background:#d1fae5;color:#065f46;}.badge-fail{background:#fee2e2;color:#991b1b;}
-    .step{border:1px solid #ddd;border-radius:6px;padding:12px;margin:12px 0;}
-    .step.pass{border-left:4px solid #10b981;}.step.fail{border-left:4px solid #ef4444;}
-    .row{display:flex;gap:12px;}.col{flex:1;min-width:0;}
-    pre{background:#f5f5f5;padding:8px;border-radius:4px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;}
-    table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px;}
-    th,td{border:1px solid #ddd;padding:4px 8px;text-align:left;}th{background:#f5f5f5;}
-    .a-pass td{background:#f0fdf4;}.a-fail td{background:#fff1f2;}
-    .error{color:#dc2626;font-weight:bold;}
-    .summary{display:flex;gap:24px;margin:12px 0;}.stat{text-align:center;}.stat .val{font-size:24px;font-weight:bold;}
-    @media print{.no-print{display:none;}}
-  </style></head><body>
-  <h1>Test Report: ${esc(report.test_plan_name)}</h1>
-  <p><b>Status:</b> <span class="badge ${report.overall_status === 'passed' ? 'badge-pass' : 'badge-fail'}">${report.overall_status.toUpperCase()}</span>
-  &nbsp;<b>Started:</b> ${new Date(report.started_at).toLocaleString()} &nbsp;<b>Duration:</b> ${fmtDuration(report.duration_ms)}</p>
-  <div class="summary">
-    <div class="stat"><div class="val">${report.total_steps}</div><div>Total</div></div>
-    <div class="stat"><div class="val" style="color:#10b981">${report.passed_steps}</div><div>Passed</div></div>
-    <div class="stat"><div class="val" style="color:#ef4444">${report.failed_steps}</div><div>Failed</div></div>
-  </div><hr/>${stepsHtml}
-  <script>window.print()</script></body></html>`)
-  win.document.close()
-}
-
 function StepCard({ step, index }: { step: StepResult; index: number }) {
   const [open, setOpen] = useState(!step.passed)
   const passedAssertions = step.assertion_results.filter(a => a.passed).length
@@ -304,13 +245,14 @@ export default function ReportDetail() {
             Back to Reports
           </button>
           {report && (
-            <button
-              onClick={() => exportToPDF(report)}
+            <a
+              href={`/api/reports/${report.id}/pdf`}
+              download={`report-${report.id.slice(0, 8)}.pdf`}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3.5 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-card"
             >
               <Download className="w-3.5 h-3.5" />
               Export PDF
-            </button>
+            </a>
           )}
         </div>
 

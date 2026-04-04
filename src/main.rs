@@ -4,6 +4,7 @@ mod config;
 mod embedded;
 mod executor;
 mod models;
+mod pdf_generator;
 mod state;
 mod storage;
 

@@ -35,8 +35,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/executions",      get(executions::list_executions).post(executions::enqueue_execution))
         .route("/api/executions/{id}",  get(executions::get_execution).delete(executions::cancel_execution))
         // ── Reports ───────────────────────────────────────────────────────────
-        .route("/api/reports",         get(reports::list_reports))
+        .route("/api/reports",          get(reports::list_reports))
         .route("/api/reports/{id}",     get(reports::get_report).delete(reports::delete_report))
+        .route("/api/reports/{id}/pdf", get(reports::export_report_pdf))
         // ── SPA fallback ──────────────────────────────────────────────────────
         .fallback(embedded::serve_static)
         // ── Global layers ─────────────────────────────────────────────────────

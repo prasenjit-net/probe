@@ -83,6 +83,7 @@ pub async fn get_test_plan(
                     "name": step.name,
                     "enabled": step.enabled,
                     "extract_variables": step.extract_variables,
+                    "variable_mappings": step.variable_mappings,
                     "request": req,
                 }));
             }

@@ -1,0 +1,53 @@
+{
+  "id": "3dfca513-19e7-43c2-9ede-8159cfd79b3e",
+  "name": "Search for nearby ATMs",
+  "description": "Test request to search for ATMs near a specified ZIP code.",
+  "method": "GET",
+  "url": "https://api.example-bank.com/v1/atms/search?zip={{zip}}&radius_miles={{radius_miles}}&limit={{limit}}",
+  "headers": [],
+  "body": null,
+  "body_type": "none",
+  "assertions": [
+    {
+      "id": "f6217403-55ee-4c5f-a019-8ccc53fab5ac",
+      "type": "status_code",
+      "operator": "equals",
+      "target": null,
+      "expected_value": "200"
+    },
+    {
+      "id": "77570b08-063a-4aeb-841d-c1543e40042e",
+      "type": "body_contains",
+      "operator": "contains",
+      "target": null,
+      "expected_value": "results"
+    }
+  ],
+  "input_variables": [
+    {
+      "name": "zip",
+      "description": "5-digit US ZIP code for the search.",
+      "default_value": "10001"
+    },
+    {
+      "name": "radius_miles",
+      "description": "Search radius in miles.",
+      "default_value": "5"
+    },
+    {
+      "name": "limit",
+      "description": "Maximum number of results to return.",
+      "default_value": "20"
+    }
+  ],
+  "extract_variables": [
+    {
+      "var_name": "atm_id",
+      "path": "$.results[*].id",
+      "source": "response_body"
+    }
+  ],
+  "collection_id": "c64055d8-adb2-41fc-9e16-a13af8d0079c",
+  "created_at": "2026-04-04T17:31:58.422158Z",
+  "updated_at": "2026-04-04T17:31:58.422158Z"
+}

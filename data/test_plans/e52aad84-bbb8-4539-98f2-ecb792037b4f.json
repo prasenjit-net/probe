@@ -1,0 +1,46 @@
+{
+  "id": "e52aad84-bbb8-4539-98f2-ecb792037b4f",
+  "name": "ATM Search Test Plan",
+  "description": "Test plan to validate the ATM search functionality.",
+  "collection_id": "c64055d8-adb2-41fc-9e16-a13af8d0079c",
+  "steps": [
+    {
+      "id": "919147db-bf5c-4fc9-a37c-3f71f525e635",
+      "request_id": "3dfca513-19e7-43c2-9ede-8159cfd79b3e",
+      "name": "Search for nearby ATMs",
+      "enabled": true,
+      "extract_variables": [
+        {
+          "var_name": "atm_id",
+          "path": "$.results[*].id",
+          "source": "response_body"
+        }
+      ],
+      "variable_mappings": [
+        {
+          "var_name": "zip",
+          "source": {
+            "kind": "constant",
+            "value": "12345"
+          }
+        },
+        {
+          "var_name": "radius_miles",
+          "source": {
+            "kind": "constant",
+            "value": "5"
+          }
+        },
+        {
+          "var_name": "limit",
+          "source": {
+            "kind": "constant",
+            "value": "10"
+          }
+        }
+      ]
+    }
+  ],
+  "created_at": "2026-04-04T17:31:58.422158Z",
+  "updated_at": "2026-04-04T17:31:58.422158Z"
+}

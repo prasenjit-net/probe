@@ -174,7 +174,7 @@ function CollectionGroup({
   }
 
   return (
-    <div className={`rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${p.border} overflow-hidden`}>
+    <div className={`rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${p.border}`}>
       <div className={`${p.header} flex items-center gap-2 px-3 py-2`}>
         <button onClick={() => setOpen(v => !v)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
           <span className="shrink-0 text-gray-500 dark:text-gray-400">

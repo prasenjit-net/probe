@@ -97,12 +97,25 @@ pub struct HttpRequest {
     pub body: Option<String>,
     pub body_type: BodyType,
     pub assertions: Vec<Assertion>,
+    /// Documents the `{{placeholder}}` variables this request expects.
+    #[serde(default)]
+    pub input_variables: Vec<InputVariable>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-// ── Test Plan ──────────────────────────────────────────────────────────────────
+// ── Variable System ────────────────────────────────────────────────────────────
 
+/// Documents an expected `{{placeholder}}` inside a request's URL/headers/body.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InputVariable {
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub default_value: Option<String>,
+}
+
+/// Where to extract an output variable from after a response is received.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractVariable {
     pub var_name: String,
@@ -119,6 +132,34 @@ pub enum VariableSource {
     StatusCode,
 }
 
+/// How to resolve a specific input variable before a step executes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MappingSource {
+    /// Use a literal constant string value.
+    Constant { value: String },
+    /// Use the output variable extracted by a previous step.
+    StepOutput { step_id: String, step_name: String, var_name: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VariableMapping {
+    /// Matches a `{{name}}` placeholder in the request.
+    pub var_name: String,
+    pub source: MappingSource,
+}
+
+/// A variable value captured at runtime (used in StepResult).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedVariable {
+    pub name: String,
+    pub value: Option<String>,
+    /// Human-readable provenance, e.g. "Constant" or "Step 2 → token"
+    pub source_label: String,
+}
+
+// ── Test Plan ──────────────────────────────────────────────────────────────────
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestPlanStep {
     pub id: String,
@@ -126,6 +167,9 @@ pub struct TestPlanStep {
     pub name: String,
     pub enabled: bool,
     pub extract_variables: Vec<ExtractVariable>,
+    /// Explicit mappings for input placeholders in this step's request.
+    #[serde(default)]
+    pub variable_mappings: Vec<VariableMapping>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -204,6 +248,12 @@ pub struct StepResult {
     pub assertion_results: Vec<AssertionResult>,
     pub passed: bool,
     pub error: Option<String>,
+    /// Input variable values as resolved just before this step executed.
+    #[serde(default)]
+    pub input_variables: Vec<ResolvedVariable>,
+    /// Output variable values extracted from this step's response.
+    #[serde(default)]
+    pub output_variables: Vec<ResolvedVariable>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -241,6 +291,8 @@ pub struct CreateHttpRequest {
     pub body: Option<String>,
     pub body_type: BodyType,
     pub assertions: Vec<Assertion>,
+    #[serde(default)]
+    pub input_variables: Vec<InputVariable>,
 }
 
 #[derive(Debug, Deserialize)]

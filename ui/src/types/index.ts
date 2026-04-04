@@ -55,6 +55,7 @@ export interface HttpRequest {
   body?: string
   body_type: BodyType
   assertions: Assertion[]
+  input_variables: InputVariable[]
   created_at: string
   updated_at: string
 }
@@ -70,7 +71,13 @@ export interface HttpRequestSummary {
   updated_at: string
 }
 
-// ── Test Plans ────────────────────────────────────────────────────────────────
+// ── Variable System ───────────────────────────────────────────────────────────
+
+export interface InputVariable {
+  name: string
+  description: string
+  default_value?: string
+}
 
 export type VariableSource = 'response_body' | 'response_header' | 'status_code'
 
@@ -80,12 +87,40 @@ export interface ExtractVariable {
   source: VariableSource
 }
 
+export type MappingSourceKind = 'constant' | 'step_output'
+
+export interface MappingSourceConstant {
+  kind: 'constant'
+  value: string
+}
+
+export interface MappingSourceStepOutput {
+  kind: 'step_output'
+  step_id: string
+  step_name: string
+  var_name: string
+}
+
+export type MappingSource = MappingSourceConstant | MappingSourceStepOutput
+
+export interface VariableMapping {
+  var_name: string
+  source: MappingSource
+}
+
+export interface ResolvedVariable {
+  name: string
+  value?: string
+  source_label: string
+}
+
 export interface TestPlanStep {
   id: string
   request_id: string
   name: string
   enabled: boolean
   extract_variables: ExtractVariable[]
+  variable_mappings: VariableMapping[]
 }
 
 export interface TestPlanStepEnriched extends TestPlanStep {
@@ -172,6 +207,8 @@ export interface StepResult {
   assertion_results: AssertionResult[]
   passed: boolean
   error?: string
+  input_variables: ResolvedVariable[]
+  output_variables: ResolvedVariable[]
 }
 
 export interface ExecutionReport {

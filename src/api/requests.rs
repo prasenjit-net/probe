@@ -50,6 +50,7 @@ pub async fn create_request(
         body: body.body,
         body_type: body.body_type,
         assertions: body.assertions,
+        input_variables: body.input_variables,
         created_at: now,
         updated_at: now,
     };
@@ -96,6 +97,7 @@ pub async fn update_request(
         body: body.body,
         body_type: body.body_type,
         assertions: body.assertions,
+        input_variables: body.input_variables,
         created_at: existing.created_at,
         updated_at: Utc::now(),
     };

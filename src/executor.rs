@@ -8,8 +8,9 @@
 use crate::{
     models::{
         Assertion, AssertionOperator, AssertionResult, AssertionType, Execution, ExecutionReport,
-        ExecutionStatus, ExtractVariable, HttpMethod, HttpRequest, KeyValue, OverallStatus,
-        RequestSnapshot, ResponseSnapshot, StepResult, TestPlan, VariableSource,
+        ExecutionStatus, ExtractVariable, HttpMethod, HttpRequest, KeyValue, MappingSource,
+        OverallStatus, RequestSnapshot, ResolvedVariable, ResponseSnapshot, StepResult, TestPlan,
+        VariableMapping, VariableSource,
     },
     storage,
 };
@@ -102,13 +103,15 @@ async fn run_execution(mut exec: Execution) {
                     assertion_results: vec![],
                     passed: false,
                     error: Some(format!("Request definition not found: {e}")),
+                    input_variables: vec![],
+                    output_variables: vec![],
                 });
                 any_failed = true;
                 continue;
             }
         };
 
-        let step_result = execute_step(&client, &step.id, &req_def, &step.extract_variables, &mut variables).await;
+        let step_result = execute_step(&client, &step.id, &req_def, &step.variable_mappings, &step.extract_variables, &mut variables).await;
         if !step_result.passed {
             any_failed = true;
         }
@@ -166,9 +169,50 @@ async fn execute_step(
     client: &Client,
     step_id: &str,
     req_def: &HttpRequest,
+    variable_mappings: &[VariableMapping],
     extract_vars: &[ExtractVariable],
     variables: &mut HashMap<String, String>,
 ) -> StepResult {
+    // Apply explicit variable mappings first — seed the vars context for this step.
+    // Constant sources inject directly; StepOutput sources should already be present
+    // from previous steps, but we record them for traceability.
+    let mut input_variables: Vec<ResolvedVariable> = Vec::new();
+    for mapping in variable_mappings {
+        match &mapping.source {
+            MappingSource::Constant { value } => {
+                variables.insert(mapping.var_name.clone(), value.clone());
+                input_variables.push(ResolvedVariable {
+                    name: mapping.var_name.clone(),
+                    value: Some(value.clone()),
+                    source_label: "Constant".to_string(),
+                });
+            }
+            MappingSource::StepOutput { step_name, var_name, .. } => {
+                let resolved = variables.get(var_name).cloned();
+                input_variables.push(ResolvedVariable {
+                    name: mapping.var_name.clone(),
+                    value: resolved,
+                    source_label: format!("{step_name} → {var_name}"),
+                });
+            }
+        }
+    }
+    // Also record any input variables defined on the request that have defaults
+    // and weren't explicitly mapped (use the default value if not already in context).
+    for iv in &req_def.input_variables {
+        let already_mapped = input_variables.iter().any(|r| r.name == iv.name);
+        if !already_mapped {
+            if let Some(default) = &iv.default_value {
+                variables.entry(iv.name.clone()).or_insert_with(|| default.clone());
+            }
+            let resolved = variables.get(&iv.name).cloned();
+            input_variables.push(ResolvedVariable {
+                name: iv.name.clone(),
+                value: resolved,
+                source_label: if variables.contains_key(&iv.name) { "Default".to_string() } else { "Unresolved".to_string() },
+            });
+        }
+    }
     // Substitute {{variable}} placeholders in URL, headers, and body
     let url = substitute_vars(&req_def.url, variables);
 
@@ -218,6 +262,8 @@ async fn execute_step(
             assertion_results: vec![],
             passed: false,
             error: Some(format!("HTTP error: {e}")),
+            input_variables,
+            output_variables: vec![],
         },
         Ok(resp) => {
             let status_code = resp.status().as_u16();
@@ -245,13 +291,19 @@ async fn execute_step(
                 .map(|a| evaluate_assertion(a, status_code, &body, &resp_headers, duration_ms))
                 .collect();
 
-            // Extract variables for subsequent steps
+            // Extract output variables for subsequent steps — capture each result for reporting
             let body_value: Option<Value> = serde_json::from_str(&body).ok();
+            let mut output_variables: Vec<ResolvedVariable> = Vec::new();
             for ev in extract_vars {
                 let extracted = extract_variable(ev, status_code, &body, &body_value, &resp_headers);
-                if let Some(val) = extracted {
-                    variables.insert(ev.var_name.clone(), val);
+                if let Some(ref val) = extracted {
+                    variables.insert(ev.var_name.clone(), val.clone());
                 }
+                output_variables.push(ResolvedVariable {
+                    name: ev.var_name.clone(),
+                    value: extracted,
+                    source_label: format!("{} ({})", ev.path, format!("{:?}", ev.source).to_lowercase()),
+                });
             }
 
             let passed = assertion_results.iter().all(|r| r.passed);
@@ -264,6 +316,8 @@ async fn execute_step(
                 assertion_results,
                 passed,
                 error: None,
+                input_variables,
+                output_variables,
             }
         }
     }

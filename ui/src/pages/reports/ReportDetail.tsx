@@ -125,6 +125,64 @@ function StepCard({ step, index }: { step: StepResult; index: number }) {
             </div>
           )}
 
+          {/* Variable tracing: input + output */}
+          {(step.input_variables?.length > 0 || step.output_variables?.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Input variables */}
+              {step.input_variables?.length > 0 && (
+                <div className="rounded-xl border border-blue-100 dark:border-blue-900/50 bg-blue-50/60 dark:bg-blue-900/10 p-3">
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-blue-500 dark:text-blue-400 mb-2 flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded-sm bg-blue-500 text-white flex items-center justify-center text-[8px]">↓</span>
+                    Input Variables
+                  </h4>
+                  <div className="space-y-1.5">
+                    {step.input_variables.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="font-mono font-semibold text-blue-700 dark:text-blue-300 shrink-0">
+                          {`{{`}{v.name}{`}}`}
+                        </span>
+                        <span className="text-gray-400 shrink-0">=</span>
+                        <span className={`font-mono flex-1 truncate ${v.value !== undefined ? 'text-gray-700 dark:text-gray-300' : 'text-red-400 italic'}`}>
+                          {v.value ?? 'unresolved'}
+                        </span>
+                        <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700">
+                          {v.source_label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Output variables */}
+              {step.output_variables?.length > 0 && (
+                <div className="rounded-xl border border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/60 dark:bg-emerald-900/10 p-3">
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded-sm bg-emerald-500 text-white flex items-center justify-center text-[8px]">↑</span>
+                    Output Variables
+                  </h4>
+                  <div className="space-y-1.5">
+                    {step.output_variables.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
+                          {v.name}
+                        </span>
+                        <span className="text-gray-400 shrink-0">=</span>
+                        <span className={`font-mono flex-1 truncate ${v.value !== undefined ? 'text-gray-700 dark:text-gray-300' : 'text-red-400 italic'}`}
+                          title={v.value}>
+                          {v.value ?? 'not extracted'}
+                        </span>
+                        <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700">
+                          {v.source_label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Request & Response side-by-side */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -188,9 +246,7 @@ function StepCard({ step, index }: { step: StepResult; index: number }) {
                   <thead className="bg-gray-50 dark:bg-gray-800">
                     <tr>
                       {['Type', 'Operator', 'Target', 'Expected', 'Actual', ''].map(h => (
-                        <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                          {h}
-                        </th>
+                        <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{h}</th>
                       ))}
                     </tr>
                   </thead>

@@ -1,6 +1,6 @@
 import axios from 'axios'
 import type {
-  HttpRequest, HttpRequestSummary, Assertion, KeyValue, BodyType, HttpMethod,
+  HttpRequest, HttpRequestSummary, Assertion, KeyValue, BodyType, HttpMethod, InputVariable,
   TestPlanSummary, TestPlanEnriched, TestPlanStep,
   Execution, ExecutionReport, ReportSummary,
   HealthData, MetricsData, MeData,
@@ -23,10 +23,12 @@ export const getRequest = (id: string) => api.get<HttpRequest>(`/requests/${id}`
 export const createRequest = (data: {
   name: string; description: string; method: HttpMethod; url: string;
   headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
+  input_variables: InputVariable[];
 }) => api.post<HttpRequest>('/requests', data).then(r => r.data)
 export const updateRequest = (id: string, data: {
   name: string; description: string; method: HttpMethod; url: string;
   headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
+  input_variables: InputVariable[];
 }) => api.put<HttpRequest>(`/requests/${id}`, data).then(r => r.data)
 export const deleteRequest = (id: string) => api.delete(`/requests/${id}`)
 

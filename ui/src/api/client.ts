@@ -35,6 +35,7 @@ export const testFireRequest = (data: {
   name: string; description: string; method: HttpMethod; url: string;
   headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
   input_variables: InputVariable[]; extract_variables: ExtractVariable[];
+  variable_values?: Record<string, string>;
 }) => api.post<StepResult>('/requests/test-fire', data).then(r => r.data)
 
 // ── Test Plans ────────────────────────────────────────────────────────────────

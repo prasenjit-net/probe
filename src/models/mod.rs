@@ -300,6 +300,17 @@ pub struct CreateHttpRequest {
     pub extract_variables: Vec<ExtractVariable>,
 }
 
+/// Payload for the ad-hoc test-fire endpoint. Extends CreateHttpRequest with
+/// user-supplied constant values for input variables.
+#[derive(Debug, Deserialize)]
+pub struct TestFireRequest {
+    #[serde(flatten)]
+    pub request: CreateHttpRequest,
+    /// Constant values to inject for each `{{placeholder}}`.
+    #[serde(default)]
+    pub variable_values: std::collections::HashMap<String, String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateTestPlan {
     pub name: String,

@@ -83,6 +83,85 @@ function Badge({ n }: { n: number }) {
   )
 }
 
+// ── TestFireVariableModal ─────────────────────────────────────────────────────
+
+function TestFireVariableModal({
+  variables,
+  onConfirm,
+  onCancel,
+}: {
+  variables: InputVariable[]
+  onConfirm: (values: Record<string, string>) => void
+  onCancel: () => void
+}) {
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {}
+    variables.forEach(v => { init[v.name] = v.default_value ?? '' })
+    return init
+  })
+
+  const set = (name: string, val: string) =>
+    setValues(prev => ({ ...prev, [name]: val }))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
+          <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+            <Play className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="currentColor" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white">Test Fire — Input Variables</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Provide constant values for this test run. These won't be saved.</p>
+          </div>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors text-xl leading-none">×</button>
+        </div>
+
+        {/* Variable inputs */}
+        <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+          {variables.map(v => (
+            <div key={v.name}>
+              <label className="block mb-1">
+                <span className="inline-flex items-center gap-1 text-xs font-mono font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                  <span className="text-blue-400">{'{{'}</span>{v.name}<span className="text-blue-400">{'}}'}</span>
+                </span>
+                {v.description && (
+                  <span className="ml-2 text-[11px] text-gray-400">{v.description}</span>
+                )}
+              </label>
+              <input
+                type="text"
+                value={values[v.name] ?? ''}
+                onChange={e => set(v.name, e.target.value)}
+                placeholder={v.default_value ? `default: ${v.default_value}` : 'Enter value…'}
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
+          <button
+            onClick={onCancel}
+            className="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(values)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm"
+          >
+            <Play className="w-3.5 h-3.5" fill="currentColor" />
+            Fire Request
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── TestFirePanel ─────────────────────────────────────────────────────────────
 
 function fmtDuration(ms: number) {
@@ -217,21 +296,45 @@ function TestFirePanel({ result, onClose }: { result: StepResult; onClose: () =>
           </div>
         )}
 
-        {/* Output variables extracted */}
-        {result.output_variables.length > 0 && (
+        {/* Input variables used */}
+        {result.input_variables.length > 0 && (
           <div className="px-4 py-3">
-            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">Extracted Variables</p>
+            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">Input Variables Used</p>
             <div className="space-y-1">
-              {result.output_variables.map((v, i) => (
+              {result.input_variables.map((v, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs">
-                  <span className="font-mono bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded">{v.name}</span>
-                  <span className="text-gray-400">=</span>
-                  <span className="font-mono text-gray-700 dark:text-gray-300 truncate">{v.value ?? <em className="text-gray-400">not found</em>}</span>
+                  <span className="font-mono bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded shrink-0">{v.name}</span>
+                  <span className="text-gray-400 shrink-0">=</span>
+                  {v.value !== null && v.value !== undefined
+                    ? <span className="font-mono text-gray-700 dark:text-gray-200 truncate">{v.value}</span>
+                    : <em className="text-gray-400">unresolved</em>}
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* Output variables extracted */}
+        {result.output_variables.length > 0 ? (
+          <div className="px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">
+              Extracted Output Variables · {result.output_variables.filter(v => v.value !== null && v.value !== undefined).length}/{result.output_variables.length} extracted
+            </p>
+            <div className="space-y-1">
+              {result.output_variables.map((v, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className={`font-mono px-2 py-0.5 rounded shrink-0 ${v.value !== null && v.value !== undefined ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
+                    {v.name}
+                  </span>
+                  <span className="text-gray-400 shrink-0">=</span>
+                  {v.value !== null && v.value !== undefined
+                    ? <span className="font-mono text-gray-700 dark:text-gray-200 truncate">{v.value}</span>
+                    : <em className="text-red-400 dark:text-red-500">not found</em>}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )
@@ -262,10 +365,11 @@ export default function RequestDesigner() {
   const [inputVars, setInputVars]   = useState<InputVariable[]>([])
   const [extractVars, setExtractVars] = useState<ExtractVariable[]>([])
   const [activeTab, setActiveTab]   = useState<Tab>('headers')
-  const [saving, setSaving]         = useState(false)
-  const [firing, setFiring]         = useState(false)
-  const [fireResult, setFireResult] = useState<StepResult | null>(null)
-  const [error, setError]           = useState('')
+  const [saving, setSaving]               = useState(false)
+  const [firing, setFiring]               = useState(false)
+  const [fireResult, setFireResult]       = useState<StepResult | null>(null)
+  const [showVarModal, setShowVarModal]   = useState(false)
+  const [error, setError]                 = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -332,9 +436,20 @@ export default function RequestDesigner() {
 
   const handleTestFire = async () => {
     if (!url.trim()) { setError('URL is required to test fire'); return }
-    setFiring(true); setError(''); setFireResult(null)
+    setError('')
+    const activeVars = inputVars.filter(v => v.name.trim())
+    if (activeVars.length > 0) {
+      setShowVarModal(true)
+      return
+    }
+    await doFire({})
+  }
+
+  const doFire = async (variableValues: Record<string, string>) => {
+    setShowVarModal(false)
+    setFiring(true); setFireResult(null)
     try {
-      const result = await testFireRequest(buildPayload())
+      const result = await testFireRequest({ ...buildPayload(), variable_values: variableValues })
       setFireResult(result)
     } catch {
       setError('Test fire failed. Is the server running?')
@@ -711,6 +826,15 @@ export default function RequestDesigner() {
 
         </div>
       </div>
+
+      {/* Variable values modal */}
+      {showVarModal && (
+        <TestFireVariableModal
+          variables={inputVars.filter(v => v.name.trim())}
+          onConfirm={doFire}
+          onCancel={() => setShowVarModal(false)}
+        />
+      )}
     </Layout>
   )
 }

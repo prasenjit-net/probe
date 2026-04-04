@@ -408,3 +408,92 @@ impl From<&ExecutionReport> for ReportSummary {
         }
     }
 }
+
+// ── API Specification (OpenAPI) ────────────────────────────────────────────────
+
+/// Stored OpenAPI specification record (content + metadata in one file).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpecRecord {
+    pub id: String,
+    pub name: String,
+    pub created_at: DateTime<Utc>,
+    /// Number of (path, method) pairs found in the spec.
+    pub endpoint_count: usize,
+    /// Full normalized OpenAPI JSON content.
+    pub content: serde_json::Value,
+}
+
+/// Lightweight summary for listing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpecSummary {
+    pub id: String,
+    pub name: String,
+    pub created_at: DateTime<Utc>,
+    pub endpoint_count: usize,
+}
+
+impl From<&SpecRecord> for SpecSummary {
+    fn from(r: &SpecRecord) -> Self {
+        Self {
+            id: r.id.clone(),
+            name: r.name.clone(),
+            created_at: r.created_at,
+            endpoint_count: r.endpoint_count,
+        }
+    }
+}
+
+// ── AI Generation preview (returned before import) ─────────────────────────────
+
+/// Variable mapping in a plan step preview — uses step_index instead of step_id.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MappingSourcePreview {
+    Constant { value: String },
+    /// References a previous step by its 0-based position in the steps array.
+    StepOutput { step_index: usize, var_name: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VarMappingPreview {
+    pub var_name: String,
+    pub source: MappingSourcePreview,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanStepPreview {
+    /// Must match the `name` of one of the requests in `GenerationPreview.requests`.
+    pub request_name: String,
+    /// Optional override for the step display name.
+    pub step_name: String,
+    pub variable_mappings: Vec<VarMappingPreview>,
+}
+
+/// Full generation result returned by `/api/specs/{id}/generate-tests`.
+/// The user can review and edit this, then POST it to `.../import` to persist.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerationPreview {
+    pub spec_id: String,
+    pub requests: Vec<GeneratedRequest>,
+    pub plan_name: String,
+    pub plan_description: String,
+    pub plan_steps: Vec<PlanStepPreview>,
+}
+
+/// A single generated request (mirrors CreateHttpRequest but also carries
+/// assertions already with UUIDs so the UI can display them).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeneratedRequest {
+    pub name: String,
+    pub description: String,
+    pub method: HttpMethod,
+    pub url: String,
+    pub headers: Vec<KeyValue>,
+    pub body: Option<String>,
+    pub body_type: BodyType,
+    pub assertions: Vec<Assertion>,
+    #[serde(default)]
+    pub input_variables: Vec<InputVariable>,
+    #[serde(default)]
+    pub extract_variables: Vec<ExtractVariable>,
+}

@@ -18,3 +18,11 @@ level = "info"
 
 [app]
 name = "Probe"
+
+[openai]
+# Set your OpenAI API key here to enable AI-powered test generation.
+# Leave api_key empty to disable AI generation.
+api_key = ""
+model = "gpt-4o-mini"
+temperature = 0.1
+max_tokens = 2000

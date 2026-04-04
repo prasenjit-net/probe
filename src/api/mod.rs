@@ -4,6 +4,7 @@ pub mod health;
 pub mod metrics_handler;
 pub mod reports;
 pub mod requests;
+pub mod specs;
 pub mod test_plans;
 
 use crate::{embedded, state::AppState};
@@ -38,6 +39,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/reports",          get(reports::list_reports))
         .route("/api/reports/{id}",     get(reports::get_report).delete(reports::delete_report))
         .route("/api/reports/{id}/pdf", get(reports::export_report_pdf))
+        // ── API Specifications ────────────────────────────────────────────────
+        .route("/api/specs",               get(specs::list_specs).post(specs::upload_spec))
+        .route("/api/specs/import",        post(specs::import_generation))
+        .route("/api/specs/{id}",          get(specs::get_spec).delete(specs::delete_spec))
+        .route("/api/specs/{id}/generate", post(specs::generate_tests))
         // ── SPA fallback ──────────────────────────────────────────────────────
         .fallback(embedded::serve_static)
         // ── Global layers ─────────────────────────────────────────────────────

@@ -241,3 +241,59 @@ export interface ReportSummary {
   failed_steps: number
 }
 
+// ── API Specifications ─────────────────────────────────────────────────────────
+
+export interface SpecSummary {
+  id: string
+  name: string
+  created_at: string
+  endpoint_count: number
+}
+
+export interface SpecRecord extends SpecSummary {
+  content: Record<string, unknown>
+}
+
+// ── Generation preview ─────────────────────────────────────────────────────────
+
+export type MappingSourcePreview =
+  | { kind: 'constant'; value: string }
+  | { kind: 'step_output'; step_index: number; var_name: string }
+
+export interface VarMappingPreview {
+  var_name: string
+  source: MappingSourcePreview
+}
+
+export interface PlanStepPreview {
+  request_name: string
+  step_name: string
+  variable_mappings: VarMappingPreview[]
+}
+
+export interface GeneratedRequest {
+  name: string
+  description: string
+  method: HttpMethod
+  url: string
+  headers: KeyValue[]
+  body?: string
+  body_type: BodyType
+  assertions: Assertion[]
+  input_variables: InputVariable[]
+  extract_variables: ExtractVariable[]
+}
+
+export interface GenerationPreview {
+  spec_id: string
+  requests: GeneratedRequest[]
+  plan_name: string
+  plan_description: string
+  plan_steps: PlanStepPreview[]
+}
+
+export interface ImportResult {
+  requests_created: number
+  test_plan_id: string
+  test_plan_name: string
+}

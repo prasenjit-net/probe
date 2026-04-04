@@ -8,7 +8,9 @@ name = "probe"
 path = "src/main.rs"
 
 [dependencies]
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "multipart"] }
+serde_yaml = "0.9"
+futures = "0.3"
 axum-extra = { version = "0.10", features = ["cookie"] }
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"

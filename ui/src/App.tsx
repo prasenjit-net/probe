@@ -13,6 +13,8 @@ import TestPlanDesigner from './pages/plans/TestPlanDesigner'
 import ExecutionQueue from './pages/executions/ExecutionQueue'
 import ReportList from './pages/reports/ReportList'
 import ReportDetail from './pages/reports/ReportDetail'
+import SpecList from './pages/specs/SpecList'
+import GeneratePreview from './pages/specs/GeneratePreview'
 import { useEffect, useState } from 'react'
 
 const SLOW_THRESHOLD_MS = 5_000
@@ -48,6 +50,8 @@ function AppRoutes() {
       <Route path="/executions" element={<ProtectedRoute><ExecutionQueue /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportList /></ProtectedRoute>} />
       <Route path="/reports/:id" element={<ProtectedRoute><ReportDetail /></ProtectedRoute>} />
+      <Route path="/specs" element={<ProtectedRoute><SpecList /></ProtectedRoute>} />
+      <Route path="/specs/:id/generate" element={<ProtectedRoute><GeneratePreview /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

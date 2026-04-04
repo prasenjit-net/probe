@@ -1,4 +1,5 @@
 mod api;
+mod ai_generator;
 mod auth;
 mod config;
 mod embedded;

@@ -8,6 +8,8 @@ pub struct Config {
     pub session: SessionConfig,
     pub logging: LoggingConfig,
     pub app: AppConfig,
+    #[serde(default)]
+    pub openai: OpenAiConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -36,6 +38,28 @@ pub struct LoggingConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppConfig {
     pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct OpenAiConfig {
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default = "default_model")]
+    pub model: String,
+    #[serde(default = "default_temperature")]
+    pub temperature: f64,
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
+}
+
+fn default_model()       -> String { "gpt-4o-mini".to_string() }
+fn default_temperature() -> f64    { 0.1 }
+fn default_max_tokens()  -> u32    { 2000 }
+
+impl OpenAiConfig {
+    pub fn is_configured(&self) -> bool {
+        !self.api_key.is_empty()
+    }
 }
 
 pub fn load_config(path: &str) -> anyhow::Result<Config> {

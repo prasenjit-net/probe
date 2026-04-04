@@ -4,6 +4,7 @@ import type {
   TestPlanSummary, TestPlanEnriched, TestPlanStep,
   Execution, ExecutionReport, ReportSummary, StepResult,
   HealthData, MetricsData, MeData,
+  SpecSummary, SpecRecord, GenerationPreview, ImportResult,
 } from '../types'
 
 export const api = axios.create({
@@ -59,3 +60,22 @@ export const listReports = () => api.get<ReportSummary[]>('/reports').then(r => 
 export const getReport = (id: string) => api.get<ExecutionReport>(`/reports/${id}`).then(r => r.data)
 export const deleteReport = (id: string) => api.delete(`/reports/${id}`)
 
+// ── API Specifications ─────────────────────────────────────────────────────────
+export const listSpecs = () => api.get<SpecSummary[]>('/specs').then(r => r.data)
+export const getSpec   = (id: string) => api.get<SpecRecord>(`/specs/${id}`).then(r => r.data)
+export const deleteSpec = (id: string) => api.delete(`/specs/${id}`)
+
+export const uploadSpec = (name: string, file: File) => {
+  const fd = new FormData()
+  fd.append('name', name)
+  fd.append('file', file)
+  return api.post<SpecSummary>('/specs', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data)
+}
+
+export const generateTests = (specId: string) =>
+  api.post<GenerationPreview>(`/specs/${specId}/generate`).then(r => r.data)
+
+export const importGeneration = (preview: GenerationPreview) =>
+  api.post<ImportResult>('/specs/import', preview).then(r => r.data)

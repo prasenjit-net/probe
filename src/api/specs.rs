@@ -11,9 +11,8 @@ use crate::{
     ai_generator,
     auth::check_session,
     models::{
-        BodyType, CreateHttpRequest, CreateTestPlan, ExtractVariable, GenerationPreview,
-        HttpRequest, InputVariable, MappingSource, MappingSourcePreview, SpecRecord, SpecSummary,
-        TestPlan, TestPlanStep,
+        GenerationPreview, HttpRequest, MappingSource, MappingSourcePreview,
+        SpecRecord, SpecSummary, TestPlan, TestPlanStep,
     },
     state::AppState,
     storage,

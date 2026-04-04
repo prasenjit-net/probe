@@ -29,6 +29,10 @@ ui/tsconfig.tsbuildinfo
 # Copy to config.local.toml for production and add it here:
 config.local.toml
 
+# config.toml contains secrets (OpenAI API key etc.) – keep out of source control.
+# Use config.example.toml as a starting template.
+config.toml
+
 # ── Editor / IDE ──────────────────────────────────────────────────────────────
 # JetBrains (RustRover, IntelliJ, CLion …)
 .idea/

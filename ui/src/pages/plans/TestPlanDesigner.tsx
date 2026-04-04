@@ -517,7 +517,7 @@ export default function TestPlanDesigner() {
     }).catch(() => setError('Failed to load test plan'))
   }, [id])
 
-  // Lazily load the full request to get input_variables + extract_variables
+  // Load a single request into cache (idempotent)
   const loadReqData = async (requestId: string) => {
     if (reqCache[requestId] !== undefined) return
     try {
@@ -527,6 +527,14 @@ export default function TestPlanDesigner() {
       // leave missing — UI will show empty state
     }
   }
+
+  // Eagerly load ALL step requests so getAvailableOutputs can read previous
+  // steps' extract_variables even if those steps have never been expanded.
+  useEffect(() => {
+    const uniqueIds = [...new Set(steps.map(s => s.request_id))]
+    uniqueIds.forEach(rid => loadReqData(rid))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [steps.map(s => s.request_id).join(',')])
 
   const handleToggleExpand = (step: TestPlanStep) => {
     if (expandedStep !== step.id) {

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
-import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Play } from 'lucide-react'
 import Layout from '../../components/Layout'
-import { getTestPlan, createTestPlan, updateTestPlan, listRequests, getRequest } from '../../api/client'
+import { getTestPlan, createTestPlan, updateTestPlan, listRequests, getRequest, enqueueExecution } from '../../api/client'
 import type {
   TestPlanStep, ExtractVariable, HttpRequest, HttpRequestSummary,
   VariableMapping, InputVariable,
@@ -501,6 +501,7 @@ export default function TestPlanDesigner() {
   const [showPicker, setShowPicker]         = useState(false)
   const [expandedStep, setExpandedStep]     = useState<string | null>(null)
   const [saving, setSaving]                 = useState(false)
+  const [executing, setExecuting]           = useState(false)
   const [error, setError]                   = useState('')
 
   useEffect(() => {
@@ -605,6 +606,21 @@ export default function TestPlanDesigner() {
     }
   }
 
+  const handleExecute = async () => {
+    if (!isEdit || !id) {
+      setError('Save the plan before executing.')
+      return
+    }
+    setExecuting(true); setError('')
+    try {
+      await enqueueExecution({ test_plan_id: id })
+      navigate('/executions')
+    } catch {
+      setError('Failed to queue execution.')
+      setExecuting(false)
+    }
+  }
+
   const enabledCount = steps.filter(s => s.enabled).length
 
   return (
@@ -631,6 +647,16 @@ export default function TestPlanDesigner() {
             )}
             {error && <span className="shrink-0 text-xs text-red-500 bg-red-50 dark:bg-red-900/30 px-3 py-1 rounded-full">⚠ {error}</span>}
             <button onClick={() => navigate('/test-plans')} className="shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Cancel</button>
+            {isEdit && (
+              <button
+                onClick={handleExecute}
+                disabled={executing || saving}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                <Play className="w-3.5 h-3.5" fill="currentColor" />
+                {executing ? 'Queuing…' : 'Execute'}
+              </button>
+            )}
             <button onClick={handleSave} disabled={saving} className="shrink-0 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
               {saving ? 'Saving…' : isEdit ? 'Update' : 'Save Plan'}
             </button>

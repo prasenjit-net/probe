@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Plus, Search, Pencil, Trash2, ClipboardList } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Plus, Search, Pencil, Trash2, ClipboardList, Play } from 'lucide-react'
 import Layout from '../../components/Layout'
 import ConfirmDialog from '../../components/ConfirmDialog'
-import { listTestPlans, deleteTestPlan } from '../../api/client'
+import { listTestPlans, deleteTestPlan, enqueueExecution } from '../../api/client'
 import type { TestPlanSummary } from '../../types'
 
 function SkeletonCard() {
@@ -24,11 +24,13 @@ function SkeletonCard() {
 }
 
 export default function TestPlanList() {
+  const navigate = useNavigate()
   const [plans, setPlans]               = useState<TestPlanSummary[]>([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState('')
   const [search, setSearch]             = useState('')
   const [deleteTarget, setDeleteTarget] = useState<TestPlanSummary | null>(null)
+  const [executing, setExecuting]       = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -52,6 +54,17 @@ export default function TestPlanList() {
       setError('Failed to delete test plan')
     } finally {
       setDeleteTarget(null)
+    }
+  }
+
+  const handleExecute = async (plan: TestPlanSummary) => {
+    setExecuting(plan.id)
+    try {
+      await enqueueExecution({ test_plan_id: plan.id })
+      navigate('/executions')
+    } catch {
+      setError(`Failed to queue execution for "${plan.name}"`)
+      setExecuting(null)
     }
   }
 
@@ -154,6 +167,14 @@ export default function TestPlanList() {
                 </span>
 
                 <div className="flex gap-2 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleExecute(plan)}
+                    disabled={executing === plan.id}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 disabled:opacity-50 transition-colors"
+                  >
+                    <Play className="w-3 h-3" fill="currentColor" />
+                    {executing === plan.id ? 'Queuing…' : 'Execute'}
+                  </button>
                   <Link
                     to={`/test-plans/${plan.id}/edit`}
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"

@@ -167,10 +167,10 @@ export default function RequestDesigner() {
 
   return (
     <Layout>
-      <div className="flex flex-col h-full space-y-0 -m-6">
+      <div className="-m-6">
 
         {/* ── Sticky top bar ───────────────────────────────────────────────── */}
-        <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
+        <div className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-3 shadow-sm">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/requests')}
@@ -219,7 +219,7 @@ export default function RequestDesigner() {
           </div>
         </div>
 
-        <div className="px-6 py-5 space-y-4 flex-1 overflow-auto">
+        <div className="px-6 py-5 space-y-4">
 
           {/* ── URL bar ────────────────────────────────────────────────────── */}
           <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 shadow-sm bg-white dark:bg-gray-800">

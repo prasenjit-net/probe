@@ -1,0 +1,29 @@
+{
+  "id": "daf66fa0-aba4-4d22-9f9f-c34d2c101402",
+  "name": "get_user_by_id",
+  "description": "",
+  "method": "GET",
+  "url": "https://jsonplaceholder.typicode.com/users/{{userId}}",
+  "headers": [],
+  "body": null,
+  "body_type": "none",
+  "assertions": [
+    {
+      "id": "376ba880-22b7-4fa4-84b2-4de153d933fd",
+      "type": "status_code",
+      "operator": "equals",
+      "target": null,
+      "expected_value": "200"
+    }
+  ],
+  "input_variables": [
+    {
+      "name": "userId",
+      "description": "User ID",
+      "default_value": ""
+    }
+  ],
+  "extract_variables": [],
+  "created_at": "2026-04-04T02:17:49.236953Z",
+  "updated_at": "2026-04-04T02:17:49.236953Z"
+}

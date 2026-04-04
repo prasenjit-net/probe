@@ -246,7 +246,7 @@ function StepCard({
     step.variable_mappings.find(m => m.var_name === varName)
 
   return (
-    <div className={`rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} bg-white dark:bg-gray-800 shadow-sm overflow-hidden transition-opacity ${!step.enabled ? 'opacity-50' : ''}`}>
+    <div className={`rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} bg-white dark:bg-gray-800 shadow-sm transition-opacity ${!step.enabled ? 'opacity-50' : ''}`}>
       {/* Step header row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <div className="shrink-0 w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-500 dark:text-gray-400">
@@ -601,10 +601,11 @@ export default function TestPlanDesigner() {
 
   return (
     <Layout>
-      <div className="flex flex-col h-full -m-6">
+      {/* Negate Layout's p-6 so we own the full content area */}
+      <div className="-m-6">
 
-        {/* ── Sticky top bar ── */}
-        <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-3 shadow-sm">
+        {/* ── Sticky top bar — sticks within <main>'s scroll ── */}
+        <div className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-3 shadow-sm">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate('/test-plans')} className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">←</button>
             <div className="flex-1 min-w-0">
@@ -628,8 +629,8 @@ export default function TestPlanDesigner() {
           </div>
         </div>
 
-        {/* ── Steps area ── */}
-        <div className="flex-1 overflow-auto px-6 pt-6 pb-10">
+        {/* ── Steps area — natural flow, <main> scrolls ── */}
+        <div className="px-6 pt-6 pb-16">
           <div className="max-w-3xl mx-auto space-y-0">
 
             {steps.length === 0 && (

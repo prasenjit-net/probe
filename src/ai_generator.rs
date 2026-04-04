@@ -148,9 +148,13 @@ Rules:
 // ── Public interface ───────────────────────────────────────────────────────────
 
 /// Generate a `GenerationPreview` from a stored spec using the OpenAI API.
+///
+/// `custom_prompt` is an optional free-text instruction the user provides to
+/// influence generation (e.g. "focus on error cases", "use bearer token auth").
 pub async fn generate_from_spec(
     spec: &SpecRecord,
     config: &OpenAiConfig,
+    custom_prompt: Option<&str>,
 ) -> Result<GenerationPreview> {
     if !config.is_configured() {
         bail!("OpenAI API key is not configured. Set api_key in config.toml [openai] section.");
@@ -158,6 +162,15 @@ pub async fn generate_from_spec(
 
     let endpoints = extract_endpoints(spec)?;
     tracing::info!(spec_id = %spec.id, count = endpoints.len(), "Generating tests for endpoints");
+
+    // Build the custom-prompt suffix once (empty string if none)
+    let custom_suffix: Arc<String> = Arc::new(
+        custom_prompt
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .map(|p| format!("\n\nAdditional instructions from the user:\n{p}"))
+            .unwrap_or_default(),
+    );
 
     // Parallel per-endpoint calls with max 3 concurrent
     let semaphore = Arc::new(Semaphore::new(3));
@@ -170,13 +183,14 @@ pub async fn generate_from_spec(
         .iter()
         .enumerate()
         .map(|(i, ep)| {
-            let sem = semaphore.clone();
-            let c = client.clone();
-            let cfg = config.clone();
-            let ep = ep.clone();
+            let sem    = semaphore.clone();
+            let c      = client.clone();
+            let cfg    = config.clone();
+            let ep     = ep.clone();
+            let suffix = custom_suffix.clone();
             async move {
                 let _permit = sem.acquire().await.expect("semaphore closed");
-                let result = generate_request_for_endpoint(&c, &cfg, &ep).await;
+                let result = generate_request_for_endpoint(&c, &cfg, &ep, &suffix).await;
                 match &result {
                     Ok(_) => tracing::info!(i, path = %ep.path, method = %ep.method, "Generated"),
                     Err(e) => tracing::warn!(i, path = %ep.path, method = %ep.method, "Failed: {e}"),
@@ -195,7 +209,7 @@ pub async fn generate_from_spec(
     }
 
     // Generate the test plan
-    let plan = generate_plan(&client, config, &requests).await?;
+    let plan = generate_plan(&client, config, &requests, &custom_suffix).await?;
 
     Ok(GenerationPreview {
         spec_id: spec.id.clone(),
@@ -286,6 +300,7 @@ async fn generate_request_for_endpoint(
     client: &reqwest::Client,
     config: &OpenAiConfig,
     ep: &EndpointSpec,
+    custom_suffix: &str,
 ) -> Result<GeneratedRequest> {
     let endpoint_json = serde_json::json!({
         "path": ep.path,
@@ -299,8 +314,9 @@ async fn generate_request_for_endpoint(
     });
 
     let user_content = format!(
-        "Generate a test request for this OpenAPI endpoint:\n\n{}",
-        serde_json::to_string_pretty(&endpoint_json)?
+        "Generate a test request for this OpenAPI endpoint:\n\n{}{}",
+        serde_json::to_string_pretty(&endpoint_json)?,
+        custom_suffix,
     );
 
     let raw = call_openai(client, config, REQUEST_SYSTEM_PROMPT, &user_content).await?;
@@ -402,6 +418,7 @@ async fn generate_plan(
     client: &reqwest::Client,
     config: &OpenAiConfig,
     requests: &[GeneratedRequest],
+    custom_suffix: &str,
 ) -> Result<PlanOutput> {
     let requests_summary: Vec<Value> = requests
         .iter()
@@ -417,8 +434,9 @@ async fn generate_plan(
         .collect();
 
     let user_content = format!(
-        "Create an ordered test execution plan for these API requests:\n\n{}",
-        serde_json::to_string_pretty(&requests_summary)?
+        "Create an ordered test execution plan for these API requests:\n\n{}{}",
+        serde_json::to_string_pretty(&requests_summary)?,
+        custom_suffix,
     );
 
     let raw = call_openai(client, config, PLAN_SYSTEM_PROMPT, &user_content).await?;

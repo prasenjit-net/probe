@@ -174,6 +174,7 @@ pub async fn generate_tests(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(id): Path<String>,
+    body: Option<Json<serde_json::Value>>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
         return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
@@ -191,7 +192,22 @@ pub async fn generate_tests(
         }))).into_response();
     }
 
-    match ai_generator::generate_from_spec(&record, config).await {
+    // Extract optional user-supplied customization prompt
+    let custom_prompt = body
+        .as_ref()
+        .and_then(|Json(v)| v.get("custom_prompt"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
+    tracing::info!(
+        spec_id = %record.id,
+        custom_prompt = custom_prompt.as_deref().unwrap_or("(none)"),
+        "Starting AI generation"
+    );
+
+    match ai_generator::generate_from_spec(&record, config, custom_prompt.as_deref()).await {
         Ok(preview) => (StatusCode::OK, Json(preview)).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
     }

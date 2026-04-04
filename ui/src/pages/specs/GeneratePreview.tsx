@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ChevronLeft, Zap, Check, X, AlertCircle, ArrowRight,
@@ -199,17 +199,23 @@ export default function GeneratePreview() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const [preview, setPreview]   = useState<GenerationPreview | null>(null)
-  const [loading, setLoading]   = useState(true)
-  const [importing, setImporting] = useState(false)
-  const [error, setError]       = useState<string | null>(null)
-  const [imported, setImported] = useState<{ plan_id: string; plan_name: string } | null>(null)
+  // Modal state
+  const [showModal, setShowModal]       = useState(true)
+  const [customPrompt, setCustomPrompt] = useState('')
 
-  useEffect(() => {
+  // Generation state
+  const [preview, setPreview]     = useState<GenerationPreview | null>(null)
+  const [loading, setLoading]     = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [imported, setImported]   = useState<{ plan_id: string; plan_name: string } | null>(null)
+
+  const startGeneration = (prompt: string) => {
     if (!id) return
+    setShowModal(false)
     setLoading(true)
     setError(null)
-    generateTests(id)
+    generateTests(id, prompt.trim() || undefined)
       .then(setPreview)
       .catch(err => {
         const msg = (err as { response?: { data?: { error?: string } } })
@@ -217,7 +223,7 @@ export default function GeneratePreview() {
         setError(msg)
       })
       .finally(() => setLoading(false))
-  }, [id])
+  }
 
   const handleImport = async () => {
     if (!preview) return
@@ -237,6 +243,97 @@ export default function GeneratePreview() {
 
   return (
     <Layout>
+      {/* ── Custom Prompt Modal ─────────────────────────────────────────────── */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-lg mx-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl overflow-hidden">
+            {/* Modal header */}
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center shrink-0">
+                <Zap className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                  Generate Tests with AI
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  Optionally guide the generation with custom instructions
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/specs')}
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Custom Instructions
+                  <span className="ml-1.5 font-normal text-gray-400">(optional)</span>
+                </label>
+                <textarea
+                  value={customPrompt}
+                  onChange={e => setCustomPrompt(e.target.value)}
+                  rows={5}
+                  placeholder={`Examples:\n• Focus on error-case scenarios and edge cases\n• Use Bearer token authentication for all secured endpoints\n• Prefer realistic test data with proper email/name formats\n• Include performance assertions (response time < 500ms)`}
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-colors font-mono"
+                />
+                <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                  These instructions are appended to the AI prompt for each endpoint and the test plan.
+                  Leave blank to use default generation.
+                </p>
+              </div>
+
+              {/* Info cards */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  { icon: '📋', label: 'Requests', desc: 'per endpoint' },
+                  { icon: '✅', label: 'Assertions', desc: 'auto-generated' },
+                  { icon: '🔗', label: 'Test Plan', desc: 'with variables' },
+                ].map(item => (
+                  <div key={item.label} className="rounded-lg bg-gray-50 dark:bg-gray-800 px-2 py-2.5">
+                    <div className="text-lg">{item.icon}</div>
+                    <div className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 mt-0.5">{item.label}</div>
+                    <div className="text-[10px] text-gray-400">{item.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+              <button
+                onClick={() => navigate('/specs')}
+                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <div className="flex items-center gap-2">
+                {customPrompt.trim() && (
+                  <button
+                    onClick={() => { setCustomPrompt(''); startGeneration('') }}
+                    className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Clear &amp; use defaults
+                  </button>
+                )}
+                <button
+                  onClick={() => startGeneration(customPrompt)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-sm font-medium text-white transition-colors"
+                >
+                  <Zap className="w-4 h-4" />
+                  {customPrompt.trim() ? 'Generate with Instructions' : 'Generate Tests'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto space-y-6 page-enter">
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -272,6 +369,17 @@ export default function GeneratePreview() {
             </button>
           )}
         </div>
+
+        {/* Custom prompt badge */}
+        {!showModal && customPrompt.trim() && !loading && (
+          <div className="flex items-start gap-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 px-4 py-2.5">
+            <Zap className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-400">Custom instructions applied: </span>
+              <span className="text-xs text-indigo-600 dark:text-indigo-300 italic">{customPrompt.trim()}</span>
+            </div>
+          </div>
+        )}
 
         {/* Error */}
         {error && (

@@ -74,8 +74,8 @@ export const uploadSpec = (name: string, file: File) => {
   }).then(r => r.data)
 }
 
-export const generateTests = (specId: string) =>
-  api.post<GenerationPreview>(`/specs/${specId}/generate`).then(r => r.data)
+export const generateTests = (specId: string, customPrompt?: string) =>
+  api.post<GenerationPreview>(`/specs/${specId}/generate`, { custom_prompt: customPrompt ?? '' }).then(r => r.data)
 
 export const importGeneration = (preview: GenerationPreview) =>
   api.post<ImportResult>('/specs/import', preview).then(r => r.data)

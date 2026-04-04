@@ -1,0 +1,11 @@
+{
+  "id": "d3a83b33-ff96-43c6-9f79-69521651ceff",
+  "test_plan_id": "33d5a734-4fac-4942-992e-3b2da1422774",
+  "test_plan_name": "ATM Search Test Plan",
+  "status": "failed",
+  "scheduled_at": null,
+  "created_at": "2026-04-04T16:44:48.950713Z",
+  "started_at": "2026-04-04T16:44:51.532694Z",
+  "completed_at": "2026-04-04T16:44:51.574673Z",
+  "report_id": "6bf15312-bc8a-4be6-9d72-765b65ce0caa"
+}

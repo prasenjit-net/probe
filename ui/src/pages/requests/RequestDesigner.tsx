@@ -525,7 +525,7 @@ export default function RequestDesigner() {
           </div>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 pt-8 pb-16 space-y-4">
 
           {/* ── URL bar ────────────────────────────────────────────────────── */}
           <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 shadow-sm bg-white dark:bg-gray-800">

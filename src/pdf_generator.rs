@@ -171,6 +171,62 @@ impl Builder {
         }
     }
 
+    /// Wrap and render markdown text as plain text (strips markdown syntax).
+    fn markdown_multiline(&mut self, raw: &str, x: f32, sz: f32, max_lines: usize) {
+        // Strip common markdown: ##/# headings, **, *, `, -, >
+        let cleaned = raw.lines().map(|line| {
+            let l = line.trim_start_matches('#').trim();
+            let l = l.replace("**", "").replace('*', "").replace('`', "").replace("> ", "");
+            // bullet points -> dash
+            let l = if l.starts_with("- ") || l.starts_with("• ") {
+                format!("  • {}", &l[2..])
+            } else { l };
+            l
+        }).collect::<Vec<_>>().join("\n");
+
+        // Render each line, using bold for lines that were headings
+        let char_w_mm = sz * 0.042;
+        let chars = ((CW - (x - ML)) / char_w_mm) as usize;
+        let chars = chars.max(30).min(200);
+        let advance = sz * 0.40;
+        let mut count = 0;
+
+        'outer: for (orig_line, clean_line) in raw.lines().zip(cleaned.lines()) {
+            if count >= max_lines {
+                self.ensure(advance + 1.0);
+                self.text("...", x, sz, false, C_LABEL);
+                self.dn(advance);
+                break;
+            }
+            let is_heading = orig_line.trim_start().starts_with('#');
+            let effective_sz = if is_heading { sz + 0.5 } else { sz };
+            let col = if is_heading { BLACK } else { (0.25, 0.25, 0.25) };
+
+            if clean_line.trim().is_empty() {
+                self.dn(advance * 0.4);
+                count += 1;
+                continue;
+            }
+
+            let mut start = 0;
+            while start < clean_line.len() {
+                if count >= max_lines {
+                    self.ensure(advance + 1.0);
+                    self.text("...", x, sz, false, C_LABEL);
+                    self.dn(advance);
+                    break 'outer;
+                }
+                let end = byte_boundary(clean_line, start + chars);
+                let chunk = &clean_line[start..end];
+                self.ensure(advance + 1.0);
+                self.text(chunk, x, effective_sz, is_heading && start == 0, col);
+                self.dn(advance);
+                count += 1;
+                start = end;
+            }
+        }
+    }
+
     fn kv_row(&mut self, key: &str, value: &str, bg: (f32,f32,f32)) {
         let row_h = 4.8;
         self.ensure(row_h + 1.0);
@@ -277,6 +333,29 @@ pub fn generate(report: &ExecutionReport) -> Vec<u8> {
     b.hline(ML, MR, 0.5, C_RULE);
     b.dn(7.0);
 
+    // ── AI Summary ───────────────────────────────────────────────────────────
+    if let Some(ref summary) = report.ai_summary {
+        b.ensure(12.0);
+        b.text("AI SUMMARY", ML, S_SMALL, true, (0.27, 0.18, 0.65));
+        b.dn(1.5);
+        b.hline(ML, MR, 0.5, (0.27, 0.18, 0.65));
+        b.dn(4.0);
+
+        // Light purple background box
+        let saved_y = b.y;
+        // We'll draw the bg after measuring, so just render the text
+        b.markdown_multiline(summary, ML + 2.0, S_BODY, 80);
+        b.dn(3.0);
+
+        // Separator before steps
+        b.ensure(5.0);
+        b.hline(ML, MR, 0.5, C_RULE);
+        b.dn(7.0);
+
+        // Restore y after the bg block
+        let _ = saved_y; // bg is drawn inline per line — no pre-draw needed
+    }
+
     // ── Steps ────────────────────────────────────────────────────────────────
     for (i, step) in report.step_results.iter().enumerate() {
         render_step(&mut b, step, i + 1);
@@ -296,12 +375,13 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
     b.badge(sl, MR - 22.0, sc);
     b.dn(5.0);
 
-    // Method + URL
+    // Method + URL — use sanitise + byte_boundary to avoid char boundary panics
     let mw = b.method_badge(&step.request.method, ML + 2.0);
-    let url = if step.request.url.len() > 90 {
-        format!("{}...", &step.request.url[..89])
-    } else { step.request.url.clone() };
-    b.text(&url, ML + 2.0 + mw, S_SMALL, false, C_LABEL);
+    let url_san = Builder::sanitise(&step.request.url);
+    let url_trunc = if url_san.len() > 90 {
+        format!("{}...", &url_san[..byte_boundary(&url_san, 87)])
+    } else { url_san };
+    b.text(&url_trunc, ML + 2.0 + mw, S_SMALL, false, C_LABEL);
     b.dn(5.5);
 
     // Error
@@ -309,7 +389,8 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
         b.ensure(8.0);
         b.rect(ML, b.y + 2.5, CW, 7.0, C_FAIL_BG);
         let msg = Builder::sanitise(err);
-        b.text(&format!("Error: {}", &msg[..msg.len().min(120)]), ML + 2.0, S_SMALL, true, C_FAIL);
+        let msg_trunc = if msg.len() > 120 { format!("{}...", &msg[..byte_boundary(&msg, 117)]) } else { msg };
+        b.text(&format!("Error: {}", msg_trunc), ML + 2.0, S_SMALL, true, C_FAIL);
         b.dn(7.0);
     }
 
@@ -383,8 +464,8 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
             let col  = if a.passed { C_PASS } else { C_FAIL };
             b.text(tick, ML + 1.5, S_BODY, true, col);
             let msg = Builder::sanitise(&a.message);
-            let msg = &msg[..msg.len().min(120)];
-            b.text(msg, ML + 10.0, S_SMALL, false, BLACK);
+            let msg_trunc = if msg.len() > 120 { format!("{}...", &msg[..byte_boundary(&msg, 117)]) } else { msg };
+            b.text(&msg_trunc, ML + 10.0, S_SMALL, false, BLACK);
             b.dn(5.0);
         }
         b.dn(2.0);

@@ -68,19 +68,23 @@ pub async fn export_report_pdf(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response()
-            .into_response();
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
     }
     let report = match storage::read::<ExecutionReport>(storage::reports_dir(), &id).await {
         Ok(r) => r,
         Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
     };
 
-    let pdf_bytes = tokio::task::spawn_blocking(move || pdf_generator::generate(&report))
-        .await
-        .unwrap_or_default();
+    let pdf_bytes = match tokio::task::spawn_blocking(move || pdf_generator::generate(&report)).await {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            tracing::error!("PDF generation panicked: {e:?}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error":"PDF generation failed"}))).into_response();
+        }
+    };
 
-    let filename = format!("report-{}.pdf", &id[..8]);
+    let short_id = if id.len() >= 8 { &id[..8] } else { &id };
+    let filename = format!("report-{}.pdf", short_id);
     let mut headers = HeaderMap::new();
     headers.insert("Content-Type", HeaderValue::from_static("application/pdf"));
     headers.insert(

@@ -1,0 +1,42 @@
+{
+  "id": "159122a8-f283-4a21-a5f5-216e41d427ec",
+  "execution_id": "2a6afc08-026d-474e-815e-c25fc2f9fe7c",
+  "test_plan_id": "9e236392-cb41-4518-ade6-b9d2b011a8b6",
+  "test_plan_name": "ATM Search Error Scenarios Test Plan",
+  "overall_status": "failed",
+  "started_at": "2026-04-04T16:54:57.867910Z",
+  "completed_at": "2026-04-04T16:54:57.870627Z",
+  "duration_ms": 2,
+  "total_steps": 1,
+  "passed_steps": 0,
+  "failed_steps": 1,
+  "step_results": [
+    {
+      "step_id": "78df6c58-647c-4ef6-bf99-ada0b59882f3",
+      "request_name": "Test ATM Search with Missing Parameters",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example-bank.com/v1/atms/search?zip=&city=",
+        "headers": [],
+        "body": null
+      },
+      "response": null,
+      "assertion_results": [],
+      "passed": false,
+      "error": "HTTP error: error sending request for url (https://api.example-bank.com/v1/atms/search?zip=&city=)",
+      "input_variables": [
+        {
+          "name": "zip",
+          "value": "",
+          "source_label": "Constant"
+        },
+        {
+          "name": "city",
+          "value": "",
+          "source_label": "Constant"
+        }
+      ],
+      "output_variables": []
+    }
+  ]
+}

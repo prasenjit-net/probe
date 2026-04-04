@@ -1,4 +1,5 @@
 pub mod auth_routes;
+pub mod collections;
 pub mod executions;
 pub mod health;
 pub mod metrics_handler;
@@ -8,7 +9,7 @@ pub mod specs;
 pub mod test_plans;
 
 use crate::{embedded, state::AppState};
-use axum::{Router, routing::{get, post}};
+use axum::{Router, routing::{get, post, put}};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 /// Build the complete Axum application.
@@ -26,12 +27,17 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/metrics/summary", get(metrics_handler::metrics_summary))
         .route("/metrics",             get(metrics_handler::prometheus_scrape))
         // ── HTTP Requests library ─────────────────────────────────────────────
-        .route("/api/requests",           get(requests::list_requests).post(requests::create_request))
-        .route("/api/requests/test-fire", post(requests::test_fire))
-        .route("/api/requests/{id}",      get(requests::get_request).put(requests::update_request).delete(requests::delete_request))
+        .route("/api/requests",                   get(requests::list_requests).post(requests::create_request))
+        .route("/api/requests/test-fire",         post(requests::test_fire))
+        .route("/api/requests/{id}/collection",   put(requests::move_request))
+        .route("/api/requests/{id}",              get(requests::get_request).put(requests::update_request).delete(requests::delete_request))
         // ── Test Plans ────────────────────────────────────────────────────────
-        .route("/api/test-plans",      get(test_plans::list_test_plans).post(test_plans::create_test_plan))
-        .route("/api/test-plans/{id}",  get(test_plans::get_test_plan).put(test_plans::update_test_plan).delete(test_plans::delete_test_plan))
+        .route("/api/test-plans",                 get(test_plans::list_test_plans).post(test_plans::create_test_plan))
+        .route("/api/test-plans/{id}/collection", put(test_plans::move_test_plan))
+        .route("/api/test-plans/{id}",            get(test_plans::get_test_plan).put(test_plans::update_test_plan).delete(test_plans::delete_test_plan))
+        // ── Collections ───────────────────────────────────────────────────────
+        .route("/api/collections",                get(collections::list_collections).post(collections::create_collection))
+        .route("/api/collections/{id}",           get(collections::get_collection).put(collections::update_collection).delete(collections::delete_collection))
         // ── Executions (queue) ────────────────────────────────────────────────
         .route("/api/executions",      get(executions::list_executions).post(executions::enqueue_execution))
         .route("/api/executions/{id}",  get(executions::get_execution).delete(executions::cancel_execution))

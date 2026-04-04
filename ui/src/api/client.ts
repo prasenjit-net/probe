@@ -5,6 +5,7 @@ import type {
   Execution, ExecutionReport, ReportSummary, StepResult,
   HealthData, MetricsData, MeData,
   SpecSummary, SpecRecord, GenerationPreview, ImportResult,
+  Collection, CollectionSummary,
 } from '../types'
 
 export const api = axios.create({
@@ -25,13 +26,17 @@ export const createRequest = (data: {
   name: string; description: string; method: HttpMethod; url: string;
   headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
   input_variables: InputVariable[]; extract_variables: ExtractVariable[];
+  collection_id?: string;
 }) => api.post<HttpRequest>('/requests', data).then(r => r.data)
 export const updateRequest = (id: string, data: {
   name: string; description: string; method: HttpMethod; url: string;
   headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
   input_variables: InputVariable[]; extract_variables: ExtractVariable[];
+  collection_id?: string;
 }) => api.put<HttpRequest>(`/requests/${id}`, data).then(r => r.data)
 export const deleteRequest = (id: string) => api.delete(`/requests/${id}`)
+export const moveRequest = (id: string, collectionId: string | null) =>
+  api.put<HttpRequestSummary>(`/requests/${id}/collection`, { collection_id: collectionId }).then(r => r.data)
 export const testFireRequest = (data: {
   name: string; description: string; method: HttpMethod; url: string;
   headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
@@ -42,11 +47,13 @@ export const testFireRequest = (data: {
 // ── Test Plans ────────────────────────────────────────────────────────────────
 export const listTestPlans = () => api.get<TestPlanSummary[]>('/test-plans').then(r => r.data)
 export const getTestPlan = (id: string) => api.get<TestPlanEnriched>(`/test-plans/${id}`).then(r => r.data)
-export const createTestPlan = (data: { name: string; description: string; steps: TestPlanStep[] }) =>
+export const createTestPlan = (data: { name: string; description: string; steps: TestPlanStep[]; collection_id?: string }) =>
   api.post('/test-plans', data).then(r => r.data)
-export const updateTestPlan = (id: string, data: { name: string; description: string; steps: TestPlanStep[] }) =>
+export const updateTestPlan = (id: string, data: { name: string; description: string; steps: TestPlanStep[]; collection_id?: string }) =>
   api.put(`/test-plans/${id}`, data).then(r => r.data)
 export const deleteTestPlan = (id: string) => api.delete(`/test-plans/${id}`)
+export const moveTestPlan = (id: string, collectionId: string | null) =>
+  api.put<TestPlanSummary>(`/test-plans/${id}/collection`, { collection_id: collectionId }).then(r => r.data)
 
 // ── Executions ────────────────────────────────────────────────────────────────
 export const listExecutions = () => api.get<Execution[]>('/executions').then(r => r.data)
@@ -79,3 +86,12 @@ export const generateTests = (specId: string, customPrompt?: string) =>
 
 export const importGeneration = (preview: GenerationPreview) =>
   api.post<ImportResult>('/specs/import', preview).then(r => r.data)
+
+// ── Collections ───────────────────────────────────────────────────────────────
+export const listCollections = () => api.get<CollectionSummary[]>('/collections').then(r => r.data)
+export const getCollection = (id: string) => api.get<Collection>(`/collections/${id}`).then(r => r.data)
+export const createCollection = (data: { name: string; description?: string; color?: string }) =>
+  api.post<Collection>('/collections', data).then(r => r.data)
+export const updateCollection = (id: string, data: { name: string; description?: string; color?: string }) =>
+  api.put<Collection>(`/collections/${id}`, data).then(r => r.data)
+export const deleteCollection = (id: string) => api.delete(`/collections/${id}`)

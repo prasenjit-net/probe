@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import { ArrowDownToLine, ArrowUpFromLine, Info, Play, ChevronDown, ChevronUp, Check, X } from 'lucide-react'
 import Layout from '../../components/Layout'
@@ -351,6 +351,7 @@ const emptyExtractVar = (): ExtractVariable => ({ var_name: '', path: '$.', sour
 
 export default function RequestDesigner() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const isEdit = Boolean(id)
 
@@ -364,6 +365,7 @@ export default function RequestDesigner() {
   const [assertions, setAssertions] = useState<Assertion[]>([emptyAssertion()])
   const [inputVars, setInputVars]   = useState<InputVariable[]>([])
   const [extractVars, setExtractVars] = useState<ExtractVariable[]>([])
+  const [collectionId, setCollectionId] = useState<string | null>(searchParams.get('collection_id'))
   const [activeTab, setActiveTab]   = useState<Tab>('headers')
   const [saving, setSaving]               = useState(false)
   const [firing, setFiring]               = useState(false)
@@ -381,6 +383,7 @@ export default function RequestDesigner() {
       setAssertions(r.assertions.length ? r.assertions : [emptyAssertion()])
       setInputVars(r.input_variables ?? [])
       setExtractVars(r.extract_variables ?? [])
+      setCollectionId(r.collection_id ?? null)
       if (r.body_type !== 'none') setActiveTab('body')
     }).catch(() => setError('Failed to load request'))
   }, [id])
@@ -409,6 +412,7 @@ export default function RequestDesigner() {
       assertions: assertions.filter(a => a.expected_value.trim()),
       input_variables: inputVars.filter(v => v.name.trim()),
       extract_variables: extractVars.filter(v => v.var_name.trim()),
+      collection_id: collectionId ?? undefined,
     }
     try {
       if (isEdit && id) await updateRequest(id, payload)

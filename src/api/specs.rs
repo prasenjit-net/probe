@@ -11,7 +11,7 @@ use crate::{
     ai_generator,
     auth::check_session,
     models::{
-        GenerationPreview, HttpRequest, MappingSource, MappingSourcePreview,
+        Collection, GenerationPreview, HttpRequest, MappingSource, MappingSourcePreview,
         SpecRecord, SpecSummary, TestPlan, TestPlanStep,
     },
     state::AppState,
@@ -225,9 +225,27 @@ pub async fn import_generation(
     }
 
     let now = Utc::now();
+
+    // 0. Create a collection to group all generated items
+    let collection_id = Uuid::new_v4().to_string();
+    let collection_name = preview.plan_name.clone();
+    let collection = Collection {
+        id: collection_id.clone(),
+        name: collection_name.clone(),
+        description: format!("AI-generated from OpenAPI spec ({})", preview.spec_id),
+        color: "indigo".to_string(),
+        created_at: now,
+        updated_at: now,
+    };
+    if let Err(e) = storage::write(storage::collections_dir(), &collection_id, &collection).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+            "error": format!("Failed to create collection: {e}")
+        }))).into_response();
+    }
+
     let mut saved_requests: Vec<HttpRequest> = Vec::new();
 
-    // 1. Save each generated request
+    // 1. Save each generated request (assigned to the new collection)
     for gen_req in &preview.requests {
         let id = Uuid::new_v4().to_string();
         let req = HttpRequest {
@@ -242,6 +260,7 @@ pub async fn import_generation(
             assertions: gen_req.assertions.clone(),
             input_variables: gen_req.input_variables.clone(),
             extract_variables: gen_req.extract_variables.clone(),
+            collection_id: Some(collection_id.clone()),
             created_at: now,
             updated_at: now,
         };
@@ -314,12 +333,13 @@ pub async fn import_generation(
         });
     }
 
-    // 3. Save test plan
+    // 3. Save test plan (assigned to the same collection)
     let plan_id = Uuid::new_v4().to_string();
     let plan = TestPlan {
         id: plan_id.clone(),
         name: preview.plan_name.clone(),
         description: preview.plan_description.clone(),
+        collection_id: Some(collection_id.clone()),
         steps: plan_steps,
         created_at: now,
         updated_at: now,
@@ -335,6 +355,8 @@ pub async fn import_generation(
         "requests_created": saved_requests.len(),
         "test_plan_id": plan_id,
         "test_plan_name": plan.name,
+        "collection_id": collection_id,
+        "collection_name": collection_name,
     }))).into_response()
 }
 

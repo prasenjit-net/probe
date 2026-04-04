@@ -1,7 +1,7 @@
 use crate::{
     auth::check_session,
     executor,
-    models::{CreateHttpRequest, HttpRequest, HttpRequestSummary, TestFireRequest},
+    models::{CreateHttpRequest, HttpRequest, HttpRequestSummary, MoveToCollection, TestFireRequest},
     state::AppState,
     storage,
 };
@@ -54,6 +54,7 @@ pub async fn create_request(
         assertions: body.assertions,
         input_variables: body.input_variables,
         extract_variables: body.extract_variables,
+        collection_id: body.collection_id,
         created_at: now,
         updated_at: now,
     };
@@ -102,6 +103,7 @@ pub async fn update_request(
         assertions: body.assertions,
         input_variables: body.input_variables,
         extract_variables: body.extract_variables,
+        collection_id: body.collection_id,
         created_at: existing.created_at,
         updated_at: Utc::now(),
     };
@@ -152,6 +154,7 @@ pub async fn test_fire(
         assertions: req.assertions,
         input_variables: req.input_variables,
         extract_variables: req.extract_variables,
+        collection_id: req.collection_id,
         created_at: now,
         updated_at: now,
     };
@@ -177,4 +180,28 @@ pub async fn test_fire(
     let result = executor::execute_step(&http_client, &step_id, &req_def, &[], &mut variables).await;
     _ = state;
     Json(result).into_response()
+}
+
+pub async fn move_request(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(id): Path<String>,
+    Json(body): Json<MoveToCollection>,
+) -> impl IntoResponse {
+    if check_session(&state, &jar).is_none() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+    }
+    let existing = match storage::read::<HttpRequest>(storage::requests_dir(), &id).await {
+        Ok(r) => r,
+        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+    };
+    let updated = HttpRequest {
+        collection_id: body.collection_id,
+        updated_at: Utc::now(),
+        ..existing
+    };
+    match storage::write(storage::requests_dir(), &updated.id.clone(), &updated).await {
+        Ok(_) => Json(HttpRequestSummary::from(&updated)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+    }
 }

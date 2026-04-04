@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import { ArrowDownToLine, ArrowUpFromLine, Play } from 'lucide-react'
 import Layout from '../../components/Layout'
@@ -490,11 +490,13 @@ function RequestPicker({ requests, onAdd, onClose }: { requests: HttpRequestSumm
 
 export default function TestPlanDesigner() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const isEdit = Boolean(id)
 
   const [name, setName]                     = useState('')
   const [description, setDescription]       = useState('')
+  const [collectionId, setCollectionId]     = useState<string | null>(searchParams.get('collection_id'))
   const [steps, setSteps]                   = useState<TestPlanStep[]>([])
   const [requestLibrary, setRequestLibrary] = useState<HttpRequestSummary[]>([])
   const [reqCache, setReqCache]             = useState<Record<string, HttpRequest>>({})
@@ -510,6 +512,7 @@ export default function TestPlanDesigner() {
     getTestPlan(id).then(plan => {
       setName(plan.name)
       setDescription(plan.description)
+      setCollectionId((plan as unknown as { collection_id?: string }).collection_id ?? null)
       setSteps(plan.steps.map(s => ({
         id: s.id, request_id: s.request_id, name: s.name,
         enabled: s.enabled, extract_variables: s.extract_variables ?? [],
@@ -596,8 +599,8 @@ export default function TestPlanDesigner() {
     if (!name.trim()) { setError('Plan name is required'); return }
     setSaving(true); setError('')
     try {
-      if (isEdit && id) await updateTestPlan(id, { name, description, steps })
-      else await createTestPlan({ name, description, steps })
+      if (isEdit && id) await updateTestPlan(id, { name, description, steps, collection_id: collectionId ?? undefined })
+      else await createTestPlan({ name, description, steps, collection_id: collectionId ?? undefined })
       navigate('/test-plans')
     } catch {
       setError('Failed to save. Please try again.')

@@ -103,6 +103,9 @@ pub struct HttpRequest {
     /// Output variables to extract from the response after this request runs.
     #[serde(default)]
     pub extract_variables: Vec<ExtractVariable>,
+    /// Optional collection this request belongs to.
+    #[serde(default)]
+    pub collection_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -180,6 +183,9 @@ pub struct TestPlan {
     pub id: String,
     pub name: String,
     pub description: String,
+    /// Optional collection this plan belongs to.
+    #[serde(default)]
+    pub collection_id: Option<String>,
     pub steps: Vec<TestPlanStep>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -298,6 +304,8 @@ pub struct CreateHttpRequest {
     pub input_variables: Vec<InputVariable>,
     #[serde(default)]
     pub extract_variables: Vec<ExtractVariable>,
+    #[serde(default)]
+    pub collection_id: Option<String>,
 }
 
 /// Payload for the ad-hoc test-fire endpoint. Extends CreateHttpRequest with
@@ -316,6 +324,8 @@ pub struct CreateTestPlan {
     pub name: String,
     pub description: String,
     pub steps: Vec<TestPlanStep>,
+    #[serde(default)]
+    pub collection_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -334,6 +344,7 @@ pub struct HttpRequestSummary {
     pub method: HttpMethod,
     pub url: String,
     pub assertion_count: usize,
+    pub collection_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -347,6 +358,7 @@ impl From<&HttpRequest> for HttpRequestSummary {
             method: r.method.clone(),
             url: r.url.clone(),
             assertion_count: r.assertions.len(),
+            collection_id: r.collection_id.clone(),
             created_at: r.created_at,
             updated_at: r.updated_at,
         }
@@ -359,6 +371,7 @@ pub struct TestPlanSummary {
     pub name: String,
     pub description: String,
     pub step_count: usize,
+    pub collection_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -370,6 +383,7 @@ impl From<&TestPlan> for TestPlanSummary {
             name: p.name.clone(),
             description: p.description.clone(),
             step_count: p.steps.len(),
+            collection_id: p.collection_id.clone(),
             created_at: p.created_at,
             updated_at: p.updated_at,
         }
@@ -496,4 +510,62 @@ pub struct GeneratedRequest {
     pub input_variables: Vec<InputVariable>,
     #[serde(default)]
     pub extract_variables: Vec<ExtractVariable>,
+}
+
+// ── Collection ─────────────────────────────────────────────────────────────────
+
+/// A named container that groups related requests and test plans.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Collection {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    /// Tailwind color name e.g. "indigo", "emerald", "blue", "amber", "rose", "purple", "teal", "orange"
+    #[serde(default = "default_collection_color")]
+    pub color: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+fn default_collection_color() -> String {
+    "indigo".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CollectionSummary {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub color: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<&Collection> for CollectionSummary {
+    fn from(c: &Collection) -> Self {
+        Self {
+            id: c.id.clone(),
+            name: c.name.clone(),
+            description: c.description.clone(),
+            color: c.color.clone(),
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCollection {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default = "default_collection_color")]
+    pub color: String,
+}
+
+/// Payload for the lightweight "move item to a collection" endpoint.
+#[derive(Debug, Deserialize)]
+pub struct MoveToCollection {
+    pub collection_id: Option<String>,
 }

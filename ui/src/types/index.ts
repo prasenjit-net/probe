@@ -57,6 +57,7 @@ export interface HttpRequest {
   assertions: Assertion[]
   input_variables: InputVariable[]
   extract_variables: ExtractVariable[]
+  collection_id?: string
   created_at: string
   updated_at: string
 }
@@ -68,6 +69,7 @@ export interface HttpRequestSummary {
   method: HttpMethod
   url: string
   assertion_count: number
+  collection_id?: string
   created_at: string
   updated_at: string
 }
@@ -151,6 +153,7 @@ export interface TestPlanSummary {
   name: string
   description: string
   step_count: number
+  collection_id?: string
   created_at: string
   updated_at: string
 }
@@ -296,4 +299,20 @@ export interface ImportResult {
   requests_created: number
   test_plan_id: string
   test_plan_name: string
+  collection_id?: string
+  collection_name?: string
 }
+
+// ── Collections ───────────────────────────────────────────────────────────────
+
+export interface Collection {
+  id: string
+  name: string
+  description: string
+  color: string
+  created_at: string
+  updated_at: string
+}
+
+export type CollectionSummary = Collection
+

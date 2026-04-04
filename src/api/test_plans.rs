@@ -1,6 +1,6 @@
 use crate::{
     auth::check_session,
-    models::{CreateTestPlan, HttpRequest, TestPlan, TestPlanSummary},
+    models::{CreateTestPlan, HttpRequest, MoveToCollection, TestPlan, TestPlanSummary},
     state::AppState,
     storage,
 };
@@ -53,6 +53,7 @@ pub async fn create_test_plan(
         id: Uuid::new_v4().to_string(),
         name: body.name,
         description: body.description,
+        collection_id: body.collection_id,
         steps: body.steps,
         created_at: now,
         updated_at: now,
@@ -127,6 +128,7 @@ pub async fn update_test_plan(
         id: existing.id,
         name: body.name,
         description: body.description,
+        collection_id: body.collection_id,
         steps: body.steps,
         created_at: existing.created_at,
         updated_at: Utc::now(),
@@ -150,6 +152,30 @@ pub async fn delete_test_plan(
     }
     match storage::delete(storage::test_plans_dir(), &id).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
+pub async fn move_test_plan(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(id): Path<String>,
+    Json(body): Json<MoveToCollection>,
+) -> impl IntoResponse {
+    if check_session(&state, &jar).is_none() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+    }
+    let existing = match storage::read::<TestPlan>(storage::test_plans_dir(), &id).await {
+        Ok(p) => p,
+        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+    };
+    let updated = TestPlan {
+        collection_id: body.collection_id,
+        updated_at: Utc::now(),
+        ..existing
+    };
+    match storage::write(storage::test_plans_dir(), &updated.id.clone(), &updated).await {
+        Ok(_) => Json(TestPlanSummary::from(&updated)).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
     }
 }

@@ -20,12 +20,15 @@ pub fn reports_dir() -> PathBuf {
     data_dir().join("reports")
 }
 
+pub fn collections_dir() -> PathBuf {
+    data_dir().join("collections")
+}
 pub fn specs_dir() -> PathBuf {
     data_dir().join("specs")
 }
 
 pub async fn ensure_dirs() -> Result<()> {
-    for dir in [requests_dir(), test_plans_dir(), executions_dir(), reports_dir(), specs_dir()] {
+    for dir in [requests_dir(), test_plans_dir(), executions_dir(), reports_dir(), specs_dir(), collections_dir()] {
         fs::create_dir_all(&dir).await.with_context(|| format!("create dir {}", dir.display()))?;
     }
     Ok(())

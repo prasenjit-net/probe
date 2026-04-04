@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
-import { ArrowDownToLine, ArrowUpFromLine, Info } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Info, Play, ChevronDown, ChevronUp, Check, X } from 'lucide-react'
 import Layout from '../../components/Layout'
-import { getRequest, createRequest, updateRequest } from '../../api/client'
+import { getRequest, createRequest, updateRequest, testFireRequest } from '../../api/client'
 import type {
   HttpMethod, BodyType, KeyValue, Assertion, AssertionType, AssertionOperator,
-  InputVariable, ExtractVariable, VariableSource,
+  InputVariable, ExtractVariable, VariableSource, StepResult,
 } from '../../types'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -83,6 +83,160 @@ function Badge({ n }: { n: number }) {
   )
 }
 
+// ── TestFirePanel ─────────────────────────────────────────────────────────────
+
+function fmtDuration(ms: number) {
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(2)}s`
+}
+
+function TestFirePanel({ result, onClose }: { result: StepResult; onClose: () => void }) {
+  const [showReq, setShowReq]   = useState(false)
+  const [showResp, setShowResp] = useState(true)
+  const statusCode = result.response?.status_code
+  const statusOk   = statusCode !== undefined && statusCode < 400
+  const passed     = result.passed
+
+  return (
+    <div className={`rounded-xl border-2 ${passed ? 'border-emerald-300 dark:border-emerald-700' : 'border-red-300 dark:border-red-700'} bg-white dark:bg-gray-800 shadow-lg overflow-hidden`}>
+      {/* Header bar */}
+      <div className={`flex items-center gap-3 px-4 py-3 ${passed ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${passed ? 'bg-emerald-500' : 'bg-red-500'}`}>
+          {passed ? <Check className="w-4 h-4" strokeWidth={3} /> : <X className="w-4 h-4" strokeWidth={3} />}
+        </div>
+        <span className={`font-semibold text-sm ${passed ? 'text-emerald-800 dark:text-emerald-200' : 'text-red-800 dark:text-red-200'}`}>
+          {passed ? 'Request Passed' : 'Request Failed'}
+        </span>
+        {statusCode && (
+          <span className={`font-mono font-bold text-sm ${statusOk ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600'}`}>
+            {statusCode}
+          </span>
+        )}
+        {result.response && (
+          <span className="text-xs text-gray-400">{fmtDuration(result.response.duration_ms)}</span>
+        )}
+        {result.error && (
+          <span className="text-xs text-red-500 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full">{result.error}</span>
+        )}
+        <button onClick={onClose} className="ml-auto shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">×</button>
+      </div>
+
+      <div className="divide-y divide-gray-100 dark:divide-gray-700">
+
+        {/* Request sent */}
+        <div>
+          <button
+            onClick={() => setShowReq(s => !s)}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+          >
+            {showReq ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            Request Sent
+            <span className="ml-auto font-mono text-gray-400">{result.request.method} {result.request.url}</span>
+          </button>
+          {showReq && (
+            <div className="px-4 pb-3 space-y-2">
+              {result.request.headers.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-1">Headers</p>
+                  <div className="space-y-0.5">
+                    {result.request.headers.map((h, i) => (
+                      <div key={i} className="flex gap-2 text-xs font-mono">
+                        <span className="text-gray-500 shrink-0">{h.key}:</span>
+                        <span className="text-gray-800 dark:text-gray-200 break-all">{h.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {result.request.body && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-1">Body</p>
+                  <pre className="text-xs bg-gray-50 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-all">{result.request.body}</pre>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Response */}
+        <div>
+          <button
+            onClick={() => setShowResp(s => !s)}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+          >
+            {showResp ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            Response
+            {result.response && (
+              <span className={`ml-auto font-mono font-bold text-xs ${statusOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                {result.response.status_code}
+              </span>
+            )}
+          </button>
+          {showResp && result.response && (
+            <div className="px-4 pb-3 space-y-2">
+              {result.response.headers.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-1">Headers</p>
+                  <div className="space-y-0.5">
+                    {result.response.headers.slice(0, 8).map((h, i) => (
+                      <div key={i} className="flex gap-2 text-xs font-mono">
+                        <span className="text-gray-500 shrink-0">{h.key}:</span>
+                        <span className="text-gray-800 dark:text-gray-200 break-all">{h.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {result.response.body && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-1">Body</p>
+                  <pre className="text-xs bg-gray-50 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-all max-h-64">{result.response.body}</pre>
+                </div>
+              )}
+            </div>
+          )}
+          {showResp && !result.response && (
+            <p className="px-4 pb-3 text-xs text-gray-400 italic">No response received.</p>
+          )}
+        </div>
+
+        {/* Assertions */}
+        {result.assertion_results.length > 0 && (
+          <div className="px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">
+              Assertions · {result.assertion_results.filter(a => a.passed).length}/{result.assertion_results.length} passed
+            </p>
+            <div className="space-y-1">
+              {result.assertion_results.map((a, i) => (
+                <div key={i} className={`flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${a.passed ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                  <span className={`shrink-0 font-bold ${a.passed ? 'text-emerald-600' : 'text-red-500'}`}>{a.passed ? '✓' : '✗'}</span>
+                  <span className="text-gray-700 dark:text-gray-300 flex-1">{a.message}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Output variables extracted */}
+        {result.output_variables.length > 0 && (
+          <div className="px-4 py-3">
+            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">Extracted Variables</p>
+            <div className="space-y-1">
+              {result.output_variables.map((v, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className="font-mono bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded">{v.name}</span>
+                  <span className="text-gray-400">=</span>
+                  <span className="font-mono text-gray-700 dark:text-gray-300 truncate">{v.value ?? <em className="text-gray-400">not found</em>}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 const emptyKV = (): KeyValue => ({ key: '', value: '' })
@@ -109,6 +263,8 @@ export default function RequestDesigner() {
   const [extractVars, setExtractVars] = useState<ExtractVariable[]>([])
   const [activeTab, setActiveTab]   = useState<Tab>('headers')
   const [saving, setSaving]         = useState(false)
+  const [firing, setFiring]         = useState(false)
+  const [fireResult, setFireResult] = useState<StepResult | null>(null)
   const [error, setError]           = useState('')
 
   useEffect(() => {
@@ -161,6 +317,32 @@ export default function RequestDesigner() {
     }
   }
 
+  const buildPayload = () => ({
+    name: name || 'Untitled',
+    description,
+    method,
+    url,
+    headers: headers.filter(h => h.key.trim()),
+    body: bodyType !== 'none' ? body : undefined,
+    body_type: bodyType,
+    assertions: assertions.filter(a => a.expected_value.trim()),
+    input_variables: inputVars.filter(v => v.name.trim()),
+    extract_variables: extractVars.filter(v => v.var_name.trim()),
+  })
+
+  const handleTestFire = async () => {
+    if (!url.trim()) { setError('URL is required to test fire'); return }
+    setFiring(true); setError(''); setFireResult(null)
+    try {
+      const result = await testFireRequest(buildPayload())
+      setFireResult(result)
+    } catch {
+      setError('Test fire failed. Is the server running?')
+    } finally {
+      setFiring(false)
+    }
+  }
+
   const filledHeaders   = headers.filter(h => h.key.trim()).length
   const filledAsserts   = assertions.filter(a => a.expected_value.trim()).length
   const varCount        = inputVars.filter(v => v.name.trim()).length + extractVars.filter(v => v.var_name.trim()).length
@@ -208,6 +390,15 @@ export default function RequestDesigner() {
               className="shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               Cancel
+            </button>
+            <button
+              onClick={handleTestFire}
+              disabled={firing || saving}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm"
+              title="Execute the request as-is without saving"
+            >
+              <Play className="w-3.5 h-3.5" fill="currentColor" />
+              {firing ? 'Firing…' : 'Test Fire'}
             </button>
             <button
               onClick={handleSave}
@@ -495,6 +686,29 @@ export default function RequestDesigner() {
               </div>
             )}
           </div>
+
+          {/* ── Test Fire result panel ─────────────────────────────────────── */}
+          {fireResult && (
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Test Fire Result</span>
+                <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+              </div>
+              <TestFirePanel result={fireResult} onClose={() => setFireResult(null)} />
+            </div>
+          )}
+
+          {firing && !fireResult && (
+            <div className="mt-4 flex items-center justify-center gap-3 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-700 py-8 text-emerald-600 dark:text-emerald-400">
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+              <span className="text-sm font-medium">Firing request…</span>
+            </div>
+          )}
+
         </div>
       </div>
     </Layout>

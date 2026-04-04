@@ -165,7 +165,7 @@ async fn finalize_execution(exec: &mut Execution, status: ExecutionStatus) {
     let _ = storage::write(storage::executions_dir(), &exec.id, exec).await;
 }
 
-async fn execute_step(
+pub async fn execute_step(
     client: &Client,
     step_id: &str,
     req_def: &HttpRequest,

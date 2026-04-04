@@ -2,7 +2,7 @@ import axios from 'axios'
 import type {
   HttpRequest, HttpRequestSummary, Assertion, KeyValue, BodyType, HttpMethod, InputVariable, ExtractVariable,
   TestPlanSummary, TestPlanEnriched, TestPlanStep,
-  Execution, ExecutionReport, ReportSummary,
+  Execution, ExecutionReport, ReportSummary, StepResult,
   HealthData, MetricsData, MeData,
 } from '../types'
 
@@ -31,6 +31,11 @@ export const updateRequest = (id: string, data: {
   input_variables: InputVariable[]; extract_variables: ExtractVariable[];
 }) => api.put<HttpRequest>(`/requests/${id}`, data).then(r => r.data)
 export const deleteRequest = (id: string) => api.delete(`/requests/${id}`)
+export const testFireRequest = (data: {
+  name: string; description: string; method: HttpMethod; url: string;
+  headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
+  input_variables: InputVariable[]; extract_variables: ExtractVariable[];
+}) => api.post<StepResult>('/requests/test-fire', data).then(r => r.data)
 
 // ── Test Plans ────────────────────────────────────────────────────────────────
 export const listTestPlans = () => api.get<TestPlanSummary[]>('/test-plans').then(r => r.data)

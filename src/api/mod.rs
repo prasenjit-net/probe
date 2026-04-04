@@ -25,8 +25,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/metrics/summary", get(metrics_handler::metrics_summary))
         .route("/metrics",             get(metrics_handler::prometheus_scrape))
         // ── HTTP Requests library ─────────────────────────────────────────────
-        .route("/api/requests",        get(requests::list_requests).post(requests::create_request))
-        .route("/api/requests/{id}",    get(requests::get_request).put(requests::update_request).delete(requests::delete_request))
+        .route("/api/requests",           get(requests::list_requests).post(requests::create_request))
+        .route("/api/requests/test-fire", post(requests::test_fire))
+        .route("/api/requests/{id}",      get(requests::get_request).put(requests::update_request).delete(requests::delete_request))
         // ── Test Plans ────────────────────────────────────────────────────────
         .route("/api/test-plans",      get(test_plans::list_test_plans).post(test_plans::create_test_plan))
         .route("/api/test-plans/{id}",  get(test_plans::get_test_plan).put(test_plans::update_test_plan).delete(test_plans::delete_test_plan))

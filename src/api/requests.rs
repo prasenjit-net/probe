@@ -1,5 +1,6 @@
 use crate::{
     auth::check_session,
+    executor,
     models::{CreateHttpRequest, HttpRequest, HttpRequestSummary},
     state::AppState,
     storage,
@@ -12,6 +13,7 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use chrono::Utc;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 pub async fn list_requests(
@@ -124,4 +126,47 @@ pub async fn delete_request(
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
     }
+}
+
+/// Execute a request payload ad-hoc (no persistence, no report).
+/// Used by the Request Designer "Test Fire" button.
+pub async fn test_fire(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(body): Json<CreateHttpRequest>,
+) -> impl IntoResponse {
+    if check_session(&state, &jar).is_none() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+    }
+    let now = Utc::now();
+    let req_def = HttpRequest {
+        id: Uuid::new_v4().to_string(),
+        name: body.name,
+        description: body.description,
+        method: body.method,
+        url: body.url,
+        headers: body.headers,
+        body: body.body,
+        body_type: body.body_type,
+        assertions: body.assertions,
+        input_variables: body.input_variables,
+        extract_variables: body.extract_variables,
+        created_at: now,
+        updated_at: now,
+    };
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .unwrap_or_default();
+    let mut variables: HashMap<String, String> = HashMap::new();
+    // Seed default values for any input variables
+    for iv in &req_def.input_variables {
+        if let Some(default) = &iv.default_value {
+            variables.insert(iv.name.clone(), default.clone());
+        }
+    }
+    let step_id = Uuid::new_v4().to_string();
+    let result = executor::execute_step(&http_client, &step_id, &req_def, &[], &mut variables).await;
+    _ = state; // suppress unused warning
+    Json(result).into_response()
 }

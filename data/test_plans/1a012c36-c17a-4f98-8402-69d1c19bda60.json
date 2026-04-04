@@ -16,8 +16,24 @@
         }
       ],
       "variable_mappings": []
+    },
+    {
+      "id": "093a323e-ecaa-4435-9890-70ca7493e594",
+      "request_id": "daf66fa0-aba4-4d22-9f9f-c34d2c101402",
+      "name": "get_user_by_id",
+      "enabled": true,
+      "extract_variables": [],
+      "variable_mappings": [
+        {
+          "var_name": "userId",
+          "source": {
+            "kind": "constant",
+            "value": "{{userId}}"
+          }
+        }
+      ]
     }
   ],
   "created_at": "2026-04-03T06:40:13.597007Z",
-  "updated_at": "2026-04-04T01:57:16.220108Z"
+  "updated_at": "2026-04-04T02:33:02.357395Z"
 }

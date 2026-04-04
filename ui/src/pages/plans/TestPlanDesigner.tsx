@@ -631,7 +631,7 @@ export default function TestPlanDesigner() {
 
         {/* ── Steps area — natural flow, <main> scrolls ── */}
         <div className="px-6 pt-6 pb-16">
-          <div className="max-w-3xl mx-auto space-y-0">
+          <div className="max-w-3xl mx-auto space-y-0 mt-6">
 
             {steps.length === 0 && (
               <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 py-20 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-colors group" onClick={() => setShowPicker(true)}>

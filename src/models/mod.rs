@@ -288,6 +288,8 @@ pub struct ExecutionReport {
     pub step_results: Vec<StepResult>,
     #[serde(default)]
     pub collection_id: Option<String>,
+    #[serde(default)]
+    pub ai_summary: Option<String>,
 }
 
 // ── Request/Response DTOs ──────────────────────────────────────────────────────

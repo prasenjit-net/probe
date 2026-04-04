@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, AlertTriangle } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import { ChevronLeft, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, AlertTriangle, Sparkles } from 'lucide-react'
 import Layout from '../../components/Layout'
 import { getReport } from '../../api/client'
 import type { ExecutionReport, StepResult } from '../../types'
@@ -327,6 +328,28 @@ export default function ReportDetail() {
                 </div>
               </div>
             </div>
+
+            {/* AI Summary */}
+            {report.ai_summary && (
+              <div className="rounded-2xl border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50 dark:bg-indigo-900/10 p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                  <h2 className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">AI Summary</h2>
+                </div>
+                <div className="prose prose-sm dark:prose-invert max-w-none
+                  prose-headings:text-gray-800 dark:prose-headings:text-gray-200
+                  prose-headings:font-semibold prose-headings:text-sm prose-headings:mt-3 prose-headings:mb-1
+                  prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:text-sm prose-p:leading-relaxed prose-p:my-1
+                  prose-li:text-gray-700 dark:prose-li:text-gray-300 prose-li:text-sm
+                  prose-ul:my-1 prose-ol:my-1
+                  prose-code:text-indigo-700 dark:prose-code:text-indigo-300
+                  prose-code:bg-indigo-100 dark:prose-code:bg-indigo-900/40
+                  prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
+                  prose-strong:text-gray-900 dark:prose-strong:text-white">
+                  <ReactMarkdown>{report.ai_summary}</ReactMarkdown>
+                </div>
+              </div>
+            )}
 
             {/* Step results */}
             <div className="space-y-2">

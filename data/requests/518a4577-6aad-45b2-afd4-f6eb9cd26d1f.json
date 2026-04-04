@@ -1,0 +1,42 @@
+{
+  "id": "518a4577-6aad-45b2-afd4-f6eb9cd26d1f",
+  "name": "Create a new Todo",
+  "description": "Test the creation of a new Todo item in JSONPlaceholder.",
+  "method": "POST",
+  "url": "https://jsonplaceholder.typicode.com/todos",
+  "headers": [
+    {
+      "key": "Content-Type",
+      "value": "application/json"
+    }
+  ],
+  "body": "{\"completed\": false, \"title\": \"Buy groceries\", \"userId\": 1}",
+  "body_type": "json",
+  "assertions": [
+    {
+      "id": "f7a6e403-ee19-4994-8cf3-aaf0dbe7585f",
+      "type": "status_code",
+      "operator": "equals",
+      "target": null,
+      "expected_value": "201"
+    },
+    {
+      "id": "a05f2a20-6f7b-485f-9017-69d74fa7c732",
+      "type": "body_contains",
+      "operator": "contains",
+      "target": null,
+      "expected_value": "\"id\": 201"
+    }
+  ],
+  "input_variables": [],
+  "extract_variables": [
+    {
+      "var_name": "id",
+      "path": "$.id",
+      "source": "response_body"
+    }
+  ],
+  "collection_id": "16bb6bda-cdb1-4abd-b6e4-7d622727b056",
+  "created_at": "2026-04-04T17:40:30.055862Z",
+  "updated_at": "2026-04-04T17:42:07.188934Z"
+}

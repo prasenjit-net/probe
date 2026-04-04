@@ -229,6 +229,7 @@ export interface ExecutionReport {
   failed_steps: number
   step_results: StepResult[]
   collection_id?: string
+  ai_summary?: string
 }
 
 export interface ReportSummary {

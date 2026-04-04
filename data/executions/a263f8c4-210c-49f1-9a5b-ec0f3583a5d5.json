@@ -1,0 +1,11 @@
+{
+  "id": "a263f8c4-210c-49f1-9a5b-ec0f3583a5d5",
+  "test_plan_id": "c1fdc051-cc67-4903-8d33-351996644c2d",
+  "test_plan_name": "t2",
+  "status": "completed",
+  "scheduled_at": null,
+  "created_at": "2026-04-04T19:56:01.112774Z",
+  "started_at": "2026-04-04T19:56:02.486045Z",
+  "completed_at": "2026-04-04T19:56:05.861136Z",
+  "report_id": "2ac3702a-3935-4ddf-940a-bbc2e2d2f4d0"
+}

@@ -6,6 +6,8 @@
 //! and writes the final report to disk.
 
 use crate::{
+    ai_generator,
+    config::Config,
     models::{
         Assertion, AssertionOperator, AssertionResult, AssertionType, Execution, ExecutionReport,
         ExecutionStatus, ExtractVariable, HttpMethod, HttpRequest, KeyValue, MappingSource,
@@ -25,11 +27,11 @@ use tokio::time::{Duration, sleep};
 use uuid::Uuid;
 
 /// Spawn the background executor loop. Call once from `main`.
-pub fn spawn() {
+pub fn spawn(config: Config) {
     tokio::spawn(async move {
         tracing::info!("Execution engine started");
         loop {
-            if let Err(e) = poll_and_run().await {
+            if let Err(e) = poll_and_run(&config).await {
                 tracing::error!("Executor error: {e:#}");
             }
             sleep(Duration::from_secs(5)).await;
@@ -37,7 +39,7 @@ pub fn spawn() {
     });
 }
 
-async fn poll_and_run() -> anyhow::Result<()> {
+async fn poll_and_run(config: &Config) -> anyhow::Result<()> {
     let executions = storage::list::<Execution>(storage::executions_dir()).await?;
     let now = Utc::now();
 
@@ -45,20 +47,18 @@ async fn poll_and_run() -> anyhow::Result<()> {
         if exec.status != ExecutionStatus::Queued {
             continue;
         }
-        // Check if scheduled time has passed (or no schedule = run immediately)
         let due = exec.scheduled_at.map(|t| t <= now).unwrap_or(true);
         if !due {
             continue;
         }
         tracing::info!(id = %exec.id, plan = %exec.test_plan_name, "Starting execution");
-        run_execution(exec).await;
-        // Run one at a time per poll cycle
+        run_execution(exec, config).await;
         break;
     }
     Ok(())
 }
 
-async fn run_execution(mut exec: Execution) {
+async fn run_execution(mut exec: Execution, config: &Config) {
     // Mark as running
     exec.status = ExecutionStatus::Running;
     exec.started_at = Some(Utc::now());
@@ -124,7 +124,7 @@ async fn run_execution(mut exec: Execution) {
     let passed = step_results.iter().filter(|r| r.passed).count();
     let failed = total - passed;
 
-    let report = ExecutionReport {
+    let mut report = ExecutionReport {
         id: Uuid::new_v4().to_string(),
         execution_id: exec.id.clone(),
         test_plan_id: exec.test_plan_id.clone(),
@@ -138,10 +138,20 @@ async fn run_execution(mut exec: Execution) {
         failed_steps: failed,
         step_results,
         collection_id: plan.collection_id.clone(),
+        ai_summary: None,
     };
 
+    // Save report immediately so it's available even if AI summary fails
     if let Err(e) = storage::write(storage::reports_dir(), &report.id, &report).await {
         tracing::error!("Failed to write report: {e}");
+    }
+
+    // Generate AI summary and re-save if configured
+    if let Some(summary) = ai_generator::generate_report_summary(&report, &config.openai).await {
+        report.ai_summary = Some(summary);
+        if let Err(e) = storage::write(storage::reports_dir(), &report.id, &report).await {
+            tracing::error!("Failed to save report with AI summary: {e}");
+        }
     }
 
     exec.report_id = Some(report.id);

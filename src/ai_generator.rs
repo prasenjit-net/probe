@@ -7,9 +7,9 @@
 use crate::{
     config::OpenAiConfig,
     models::{
-        Assertion, AssertionOperator, AssertionType, BodyType, ExtractVariable, GeneratedRequest,
-        GenerationPreview, HttpMethod, InputVariable, KeyValue, MappingSourcePreview,
-        PlanStepPreview, SpecRecord, VarMappingPreview,
+        Assertion, AssertionOperator, AssertionType, BodyType, ExecutionReport, ExtractVariable,
+        GeneratedRequest, GenerationPreview, HttpMethod, InputVariable, KeyValue,
+        MappingSourcePreview, OverallStatus, PlanStepPreview, SpecRecord, VarMappingPreview,
     },
 };
 use anyhow::{anyhow, bail, Context, Result};
@@ -552,6 +552,140 @@ async fn call_openai(
 
     tracing::debug!(content = %&content[..content.len().min(200)], "OpenAI response");
     Ok(content)
+}
+
+/// Call OpenAI and return plain text (no JSON response_format constraint).
+async fn call_openai_text(
+    client: &reqwest::Client,
+    config: &OpenAiConfig,
+    system: &str,
+    user: &str,
+) -> Result<String> {
+    #[derive(Serialize)]
+    struct OaiTextRequest<'a> {
+        model: &'a str,
+        temperature: f64,
+        max_tokens: u32,
+        messages: Vec<OaiMessage<'a>>,
+    }
+
+    let body = OaiTextRequest {
+        model: &config.model,
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        messages: vec![
+            OaiMessage { role: "system", content: system.to_string() },
+            OaiMessage { role: "user",   content: user.to_string() },
+        ],
+    };
+
+    let resp = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .bearer_auth(&config.api_key)
+        .json(&body)
+        .send()
+        .await
+        .context("OpenAI text request failed")?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        bail!("OpenAI API error {status}: {text}");
+    }
+
+    let parsed: OaiResponse = resp.json().await.context("parse OpenAI text response")?;
+    parsed
+        .choices
+        .into_iter()
+        .next()
+        .map(|c| c.message.content)
+        .ok_or_else(|| anyhow!("OpenAI returned no choices"))
+}
+
+// ── Report summary ─────────────────────────────────────────────────────────────
+
+const SUMMARY_SYSTEM_PROMPT: &str = r#"You are a concise technical writer summarizing API test execution results.
+Write a clear, actionable Markdown summary of the test run.
+
+Structure your response with these sections (use ## headings):
+- ## Overview — one paragraph: overall status, pass rate, duration
+- ## Results — bullet list of each step with ✅ or ❌, request name, and brief outcome
+- ## Failures — only if any steps failed: list each failure with the step name, what assertion failed and why
+- ## Recommendations — 1–3 short actionable suggestions based on the results (or "All tests passed — no action needed." if fully passing)
+
+Keep it concise. Use inline code for values. Do not repeat raw JSON."#;
+
+/// Generate a markdown summary of an execution report using OpenAI.
+/// Returns `None` if OpenAI is not configured or the call fails (non-fatal).
+pub async fn generate_report_summary(
+    report: &ExecutionReport,
+    config: &OpenAiConfig,
+) -> Option<String> {
+    if !config.is_configured() {
+        return None;
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .ok()?;
+
+    // Build a compact text representation of the report
+    let status_label = match report.overall_status {
+        OverallStatus::Passed => "PASSED",
+        OverallStatus::Failed => "FAILED",
+    };
+    let mut user_content = format!(
+        "Test Plan: {}\nStatus: {}\nSteps: {}/{} passed\nDuration: {}ms\n\nStep results:\n",
+        report.test_plan_name,
+        status_label,
+        report.passed_steps,
+        report.total_steps,
+        report.duration_ms,
+    );
+
+    for (i, step) in report.step_results.iter().enumerate() {
+        let step_status = if step.passed { "PASS" } else { "FAIL" };
+        user_content.push_str(&format!(
+            "\n{}. [{}] {}\n   URL: {} {}\n",
+            i + 1,
+            step_status,
+            step.request_name,
+            step.request.method,
+            step.request.url,
+        ));
+        if let Some(resp) = &step.response {
+            user_content.push_str(&format!("   Status: {}\n", resp.status_code));
+        }
+        if let Some(err) = &step.error {
+            user_content.push_str(&format!("   Error: {}\n", err));
+        }
+        for ar in &step.assertion_results {
+            if !ar.passed {
+                user_content.push_str(&format!(
+                    "   ❌ Assertion failed: {:?} | expected: {:?} | actual: {:?}\n",
+                    ar.assertion_type, ar.expected, ar.actual
+                ));
+            }
+        }
+        for ov in &step.output_variables {
+            user_content.push_str(&format!(
+                "   Output var {}: {:?}\n",
+                ov.name, ov.value
+            ));
+        }
+    }
+
+    match call_openai_text(&client, config, SUMMARY_SYSTEM_PROMPT, &user_content).await {
+        Ok(summary) => {
+            tracing::info!(report_id = %report.id, "AI summary generated");
+            Some(summary)
+        }
+        Err(e) => {
+            tracing::warn!(report_id = %report.id, error = %e, "AI summary generation failed");
+            None
+        }
+    }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

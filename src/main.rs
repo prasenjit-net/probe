@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
     let state = state::AppState::new(cfg.clone());
 
     // ── Spawn background execution engine ─────────────────────────────────
-    executor::spawn();
+    executor::spawn(cfg.clone());
 
     // ── Build Axum router ─────────────────────────────────────────────────
     let app = api::create_router(state);

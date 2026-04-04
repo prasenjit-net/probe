@@ -120,7 +120,7 @@ export default function RequestDesigner() {
       setBodyType(r.body_type); setBody(r.body ?? '')
       setAssertions(r.assertions.length ? r.assertions : [emptyAssertion()])
       setInputVars(r.input_variables ?? [])
-      // extract_variables is on test plan steps, not on request. No-op for now.
+      setExtractVars(r.extract_variables ?? [])
       if (r.body_type !== 'none') setActiveTab('body')
     }).catch(() => setError('Failed to load request'))
   }, [id])
@@ -148,6 +148,7 @@ export default function RequestDesigner() {
       body_type: bodyType,
       assertions: assertions.filter(a => a.expected_value.trim()),
       input_variables: inputVars.filter(v => v.name.trim()),
+      extract_variables: extractVars.filter(v => v.var_name.trim()),
     }
     try {
       if (isEdit && id) await updateRequest(id, payload)

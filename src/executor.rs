@@ -111,7 +111,7 @@ async fn run_execution(mut exec: Execution) {
             }
         };
 
-        let step_result = execute_step(&client, &step.id, &req_def, &step.variable_mappings, &step.extract_variables, &mut variables).await;
+        let step_result = execute_step(&client, &step.id, &req_def, &step.variable_mappings, &mut variables).await;
         if !step_result.passed {
             any_failed = true;
         }
@@ -170,7 +170,6 @@ async fn execute_step(
     step_id: &str,
     req_def: &HttpRequest,
     variable_mappings: &[VariableMapping],
-    extract_vars: &[ExtractVariable],
     variables: &mut HashMap<String, String>,
 ) -> StepResult {
     // Apply explicit variable mappings first — seed the vars context for this step.
@@ -291,10 +290,12 @@ async fn execute_step(
                 .map(|a| evaluate_assertion(a, status_code, &body, &resp_headers, duration_ms))
                 .collect();
 
-            // Extract output variables for subsequent steps — capture each result for reporting
+            // Extract output variables for subsequent steps — always use the request's
+            // extract_variables definition so outputs are captured regardless of which
+            // test plan this step runs in.
             let body_value: Option<Value> = serde_json::from_str(&body).ok();
             let mut output_variables: Vec<ResolvedVariable> = Vec::new();
-            for ev in extract_vars {
+            for ev in &req_def.extract_variables {
                 let extracted = extract_variable(ev, status_code, &body, &body_value, &resp_headers);
                 if let Some(ref val) = extracted {
                     variables.insert(ev.var_name.clone(), val.clone());

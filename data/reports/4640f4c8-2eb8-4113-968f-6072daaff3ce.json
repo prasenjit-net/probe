@@ -1,0 +1,154 @@
+{
+  "id": "4640f4c8-2eb8-4113-968f-6072daaff3ce",
+  "execution_id": "20fb2776-4de8-4c78-9eda-60751c16fb70",
+  "test_plan_id": "1a012c36-c17a-4f98-8402-69d1c19bda60",
+  "test_plan_name": "plan_1",
+  "overall_status": "passed",
+  "started_at": "2026-04-04T01:53:15.947849Z",
+  "completed_at": "2026-04-04T01:53:16.108620Z",
+  "duration_ms": 160,
+  "total_steps": 1,
+  "passed_steps": 1,
+  "failed_steps": 0,
+  "step_results": [
+    {
+      "step_id": "79917967-342e-44f5-b022-7a2e2933fa06",
+      "request_name": "todo_1",
+      "request": {
+        "method": "GET",
+        "url": "https://jsonplaceholder.typicode.com/todos/3",
+        "headers": [],
+        "body": null
+      },
+      "response": {
+        "status_code": 200,
+        "headers": [
+          {
+            "key": "date",
+            "value": "Sat, 04 Apr 2026 01:53:16 GMT"
+          },
+          {
+            "key": "content-type",
+            "value": "application/json; charset=utf-8"
+          },
+          {
+            "key": "content-length",
+            "value": "84"
+          },
+          {
+            "key": "connection",
+            "value": "keep-alive"
+          },
+          {
+            "key": "access-control-allow-credentials",
+            "value": "true"
+          },
+          {
+            "key": "cache-control",
+            "value": "max-age=43200"
+          },
+          {
+            "key": "etag",
+            "value": "W/\"54-J3JtLgWuXjgj1OZdyAcKAqOaKHo\""
+          },
+          {
+            "key": "expires",
+            "value": "-1"
+          },
+          {
+            "key": "nel",
+            "value": "{\"report_to\":\"heroku-nel\",\"response_headers\":[\"Via\"],\"max_age\":3600,\"success_fraction\":0.01,\"failure_fraction\":0.1}"
+          },
+          {
+            "key": "pragma",
+            "value": "no-cache"
+          },
+          {
+            "key": "report-to",
+            "value": "{\"group\":\"heroku-nel\",\"endpoints\":[{\"url\":\"https://nel.heroku.com/reports?s=BegKQWhcxg5axnC1C%2BvXpIqclwQZOuD8BlJg4d3205c%3D\\u0026sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d\\u0026ts=1772885194\"}],\"max_age\":3600}"
+          },
+          {
+            "key": "reporting-endpoints",
+            "value": "heroku-nel=\"https://nel.heroku.com/reports?s=BegKQWhcxg5axnC1C%2BvXpIqclwQZOuD8BlJg4d3205c%3D&sid=e11707d5-02a7-43ef-b45e-2cf4d2036f7d&ts=1772885194\""
+          },
+          {
+            "key": "server",
+            "value": "cloudflare"
+          },
+          {
+            "key": "vary",
+            "value": "Origin, Accept-Encoding"
+          },
+          {
+            "key": "via",
+            "value": "2.0 heroku-router"
+          },
+          {
+            "key": "x-content-type-options",
+            "value": "nosniff"
+          },
+          {
+            "key": "x-powered-by",
+            "value": "Express"
+          },
+          {
+            "key": "x-ratelimit-limit",
+            "value": "1000"
+          },
+          {
+            "key": "x-ratelimit-remaining",
+            "value": "999"
+          },
+          {
+            "key": "x-ratelimit-reset",
+            "value": "1772885197"
+          },
+          {
+            "key": "age",
+            "value": "2461"
+          },
+          {
+            "key": "accept-ranges",
+            "value": "bytes"
+          },
+          {
+            "key": "cf-cache-status",
+            "value": "HIT"
+          },
+          {
+            "key": "cf-ray",
+            "value": "9e6cadabae94f31f-SJC"
+          },
+          {
+            "key": "alt-svc",
+            "value": "h3=\":443\"; ma=86400"
+          }
+        ],
+        "body": "{\n  \"userId\": 1,\n  \"id\": 3,\n  \"title\": \"fugiat veniam minus\",\n  \"completed\": false\n}",
+        "duration_ms": 159
+      },
+      "assertion_results": [
+        {
+          "assertion_id": "dcc1ef0a-3cc4-46e3-b826-2922cea7d471",
+          "type": "status_code",
+          "operator": "equals",
+          "target": null,
+          "expected": "200",
+          "actual": "200",
+          "passed": true,
+          "message": "Expected \"200\" to equal \"200\""
+        }
+      ],
+      "passed": true,
+      "error": null,
+      "input_variables": [
+        {
+          "name": "id",
+          "value": "3",
+          "source_label": "Constant"
+        }
+      ],
+      "output_variables": []
+    }
+  ]
+}

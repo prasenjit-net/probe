@@ -56,6 +56,7 @@ export interface HttpRequest {
   body_type: BodyType
   assertions: Assertion[]
   input_variables: InputVariable[]
+  extract_variables: ExtractVariable[]
   created_at: string
   updated_at: string
 }

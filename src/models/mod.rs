@@ -100,6 +100,9 @@ pub struct HttpRequest {
     /// Documents the `{{placeholder}}` variables this request expects.
     #[serde(default)]
     pub input_variables: Vec<InputVariable>,
+    /// Output variables to extract from the response after this request runs.
+    #[serde(default)]
+    pub extract_variables: Vec<ExtractVariable>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -293,6 +296,8 @@ pub struct CreateHttpRequest {
     pub assertions: Vec<Assertion>,
     #[serde(default)]
     pub input_variables: Vec<InputVariable>,
+    #[serde(default)]
+    pub extract_variables: Vec<ExtractVariable>,
 }
 
 #[derive(Debug, Deserialize)]

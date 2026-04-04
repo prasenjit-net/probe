@@ -8,9 +8,16 @@
       "request_id": "7d916690-1dc4-4a28-8e3b-4a04889378ef",
       "name": "todo_1",
       "enabled": true,
-      "extract_variables": []
+      "extract_variables": [
+        {
+          "var_name": "userId }}",
+          "path": "$.userId",
+          "source": "response_body"
+        }
+      ],
+      "variable_mappings": []
     }
   ],
   "created_at": "2026-04-03T06:40:13.597007Z",
-  "updated_at": "2026-04-03T06:40:13.597007Z"
+  "updated_at": "2026-04-04T01:57:16.220108Z"
 }

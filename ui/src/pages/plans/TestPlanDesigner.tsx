@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
-import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, Link2 } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react'
 import Layout from '../../components/Layout'
 import { getTestPlan, createTestPlan, updateTestPlan, listRequests, getRequest } from '../../api/client'
 import type {
-  TestPlanStep, ExtractVariable, HttpRequestSummary,
-  VariableSource, VariableMapping, InputVariable,
+  TestPlanStep, ExtractVariable, HttpRequest, HttpRequestSummary,
+  VariableMapping, InputVariable,
 } from '../../types'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -19,8 +19,6 @@ const METHOD_BORDER: Record<string, string> = {
   GET: 'border-l-emerald-400', POST: 'border-l-blue-400', PUT: 'border-l-amber-400',
   PATCH: 'border-l-orange-400', DELETE: 'border-l-red-400', HEAD: 'border-l-purple-400', OPTIONS: 'border-l-gray-400',
 }
-
-const emptyExtract = (): ExtractVariable => ({ var_name: '', path: '$', source: 'response_body' })
 
 // ── Available output variable shape ───────────────────────────────────────────
 
@@ -181,14 +179,13 @@ function MappingRow({
             >
               {stepOutputSource?.var_name ? (
                 <>
-                  <Link2 className="w-3 h-3 shrink-0" />
                   <span className="font-mono font-medium flex-1 text-left">{stepOutputSource.var_name}</span>
                   <span className="text-[10px] text-emerald-600/60 dark:text-emerald-400/60 shrink-0">from {stepOutputSource.step_name}</span>
                 </>
               ) : (
                 <>
                   <span className="flex-1 text-left">Select output variable…</span>
-                  <ChevronDown className="w-3 h-3 shrink-0" />
+                  <span className="text-xs shrink-0">▾</span>
                 </>
               )}
             </button>
@@ -219,9 +216,8 @@ function MappingRow({
 
 function StepCard({
   step, index, total, reqInfo, isExpanded,
-  inputVarDefs, availableOutputs,
+  inputVarDefs, outputVarDefs, availableOutputs,
   onToggleExpand, onUpdate, onMove, onRemove,
-  onAddExtract, onUpdateExtract, onRemoveExtract,
   onUpdateMapping, onRemoveMapping,
 }: {
   step: TestPlanStep
@@ -230,14 +226,12 @@ function StepCard({
   reqInfo?: HttpRequestSummary
   isExpanded: boolean
   inputVarDefs: InputVariable[]
+  outputVarDefs: ExtractVariable[]
   availableOutputs: AvailableVar[]
   onToggleExpand: () => void
   onUpdate: (patch: Partial<TestPlanStep>) => void
   onMove: (dir: -1 | 1) => void
   onRemove: () => void
-  onAddExtract: () => void
-  onUpdateExtract: (idx: number, patch: Partial<ExtractVariable>) => void
-  onRemoveExtract: (idx: number) => void
   onUpdateMapping: (m: VariableMapping) => void
   onRemoveMapping: (varName: string) => void
 }) {
@@ -245,8 +239,8 @@ function StepCard({
   const method = reqInfo?.method ?? 'GET'
   const borderColor = METHOD_BORDER[method] ?? 'border-l-gray-400'
   const mappingCount = step.variable_mappings.length
-  const extractCount = step.extract_variables.length
-  const totalVarCount = mappingCount + extractCount
+  const outputCount = outputVarDefs.length
+  const totalVarCount = mappingCount + outputCount
 
   const getMappingFor = (varName: string) =>
     step.variable_mappings.find(m => m.var_name === varName)
@@ -325,8 +319,8 @@ function StepCard({
               }`}
             >
               <ArrowUpFromLine className="w-3 h-3" />
-              Output Extractions
-              {extractCount > 0 && <span className="ml-1 text-[10px] bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded-full font-bold">{extractCount}</span>}
+              Output Variables
+              {outputCount > 0 && <span className="ml-1 text-[10px] bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded-full font-bold">{outputCount}</span>}
             </button>
           </div>
 
@@ -390,47 +384,34 @@ function StepCard({
             </div>
           )}
 
-          {/* Output Extractions panel */}
+          {/* Output Variables panel — read-only, defined in Request Designer */}
           {activePanel === 'outputs' && (
             <div className="px-4 py-3 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-400">
-                  Extract values from this step's response for use in <span className="text-emerald-600 dark:text-emerald-400 font-semibold">later steps</span>.
+                  Output variables defined in the <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Request Designer</span>. They are automatically extracted and available to later steps.
                 </p>
-                <button onClick={onAddExtract} className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-lg transition-colors">
-                  + Extract
-                </button>
               </div>
 
-              {step.extract_variables.length === 0 ? (
-                <p className="text-xs text-gray-400 italic py-1">No extractions. Click "+ Extract" to capture a value from this response.</p>
+              {outputVarDefs.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-900/10 p-5 text-center">
+                  <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">No output variables defined for this request.</p>
+                  <p className="text-[10px] text-emerald-400/60 mt-1">Open the Request Builder → Variables tab to define output extractions.</p>
+                </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-[100px_140px_1fr_28px] gap-2 px-1">
+                  <div className="grid grid-cols-[100px_140px_1fr] gap-2 px-1">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Variable</span>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Source</span>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Path / Key</span>
-                    <span />
                   </div>
-                  {step.extract_variables.map((ev, evIdx) => (
-                    <div key={evIdx} className="grid grid-cols-[100px_140px_1fr_28px] gap-2 items-center group">
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-400 text-xs font-mono pointer-events-none">{`{{`}</span>
-                        <input value={ev.var_name} onChange={e => onUpdateExtract(evIdx, { var_name: e.target.value })}
-                          className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 pl-7 pr-2 py-1.5 text-xs font-mono text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          placeholder="token" />
-                      </div>
-                      <select value={ev.source} onChange={e => onUpdateExtract(evIdx, { source: e.target.value as VariableSource })}
-                        className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                        <option value="response_body">📄 Response Body</option>
-                        <option value="response_header">📋 Response Header</option>
-                        <option value="status_code">🔢 Status Code</option>
-                      </select>
-                      <input value={ev.path} onChange={e => onUpdateExtract(evIdx, { path: e.target.value })}
-                        className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs font-mono text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        placeholder={ev.source === 'response_header' ? 'authorization' : ev.source === 'status_code' ? '—' : '$.data.token'}
-                        disabled={ev.source === 'status_code'} />
-                      <button onClick={() => onRemoveExtract(evIdx)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors opacity-0 group-hover:opacity-100">×</button>
+                  {outputVarDefs.map((ev, i) => (
+                    <div key={i} className="grid grid-cols-[100px_140px_1fr] gap-2 items-center rounded-lg bg-emerald-50/60 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/40 px-3 py-2">
+                      <span className="font-mono text-xs font-semibold text-emerald-700 dark:text-emerald-300">{`{{${ev.var_name}}}`}</span>
+                      <span className="text-xs text-gray-500">
+                        {ev.source === 'response_body' ? '📄 Response Body' : ev.source === 'response_header' ? '📋 Header' : '🔢 Status Code'}
+                      </span>
+                      <span className="font-mono text-xs text-gray-500 truncate" title={ev.path}>{ev.path || '—'}</span>
                     </div>
                   ))}
                 </div>
@@ -516,7 +497,7 @@ export default function TestPlanDesigner() {
   const [description, setDescription]       = useState('')
   const [steps, setSteps]                   = useState<TestPlanStep[]>([])
   const [requestLibrary, setRequestLibrary] = useState<HttpRequestSummary[]>([])
-  const [inputVarCache, setInputVarCache]   = useState<Record<string, InputVariable[]>>({})
+  const [reqCache, setReqCache]             = useState<Record<string, HttpRequest>>({})
   const [showPicker, setShowPicker]         = useState(false)
   const [expandedStep, setExpandedStep]     = useState<string | null>(null)
   const [saving, setSaving]                 = useState(false)
@@ -536,20 +517,20 @@ export default function TestPlanDesigner() {
     }).catch(() => setError('Failed to load test plan'))
   }, [id])
 
-  // Lazily load full request data for input variable definitions
-  const loadInputVars = async (requestId: string) => {
-    if (inputVarCache[requestId] !== undefined) return
+  // Lazily load the full request to get input_variables + extract_variables
+  const loadReqData = async (requestId: string) => {
+    if (reqCache[requestId] !== undefined) return
     try {
       const req = await getRequest(requestId)
-      setInputVarCache(prev => ({ ...prev, [requestId]: req.input_variables ?? [] }))
+      setReqCache(prev => ({ ...prev, [requestId]: req }))
     } catch {
-      setInputVarCache(prev => ({ ...prev, [requestId]: [] }))
+      // leave missing — UI will show empty state
     }
   }
 
   const handleToggleExpand = (step: TestPlanStep) => {
     if (expandedStep !== step.id) {
-      loadInputVars(step.request_id)
+      loadReqData(step.request_id)
     }
     setExpandedStep(expandedStep === step.id ? null : step.id)
   }
@@ -570,15 +551,6 @@ export default function TestPlanDesigner() {
     if (target < 0 || target >= next.length) return
     ;[next[idx], next[target]] = [next[target], next[idx]]; setSteps(next)
   }
-  const addExtract   = (stepId: string) =>
-    setSteps(prev => prev.map(s => s.id === stepId
-      ? { ...s, extract_variables: [...s.extract_variables, emptyExtract()] } : s))
-  const updateExtract = (stepId: string, idx: number, patch: Partial<ExtractVariable>) =>
-    setSteps(prev => prev.map(s => s.id === stepId
-      ? { ...s, extract_variables: s.extract_variables.map((e, i) => i === idx ? { ...e, ...patch } : e) } : s))
-  const removeExtract = (stepId: string, idx: number) =>
-    setSteps(prev => prev.map(s => s.id === stepId
-      ? { ...s, extract_variables: s.extract_variables.filter((_, i) => i !== idx) } : s))
 
   const updateMapping = (stepId: string, m: VariableMapping) =>
     setSteps(prev => prev.map(s => {
@@ -596,12 +568,13 @@ export default function TestPlanDesigner() {
     setSteps(prev => prev.map(s => s.id === stepId
       ? { ...s, variable_mappings: s.variable_mappings.filter(m => m.var_name !== varName) } : s))
 
-  // Compute available output vars for step at index i = all extract_variables from steps 0..i-1
+  // Available outputs for step at index i = extract_variables from the requests of all prior enabled steps
   const getAvailableOutputs = (stepIndex: number): AvailableVar[] => {
     const result: AvailableVar[] = []
     for (let i = 0; i < stepIndex; i++) {
       const s = steps[i]
-      for (const ev of s.extract_variables) {
+      const req = reqCache[s.request_id]
+      for (const ev of req?.extract_variables ?? []) {
         if (ev.var_name.trim()) {
           result.push({ step_id: s.id, step_name: s.name, step_index: i, var_name: ev.var_name })
         }
@@ -628,10 +601,10 @@ export default function TestPlanDesigner() {
 
   return (
     <Layout>
-      <div className="flex flex-col h-full space-y-0 -m-6">
+      <div className="flex flex-col h-full -m-6">
 
         {/* ── Sticky top bar ── */}
-        <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
+        <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-3 shadow-sm">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate('/test-plans')} className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">←</button>
             <div className="flex-1 min-w-0">
@@ -656,7 +629,7 @@ export default function TestPlanDesigner() {
         </div>
 
         {/* ── Steps area ── */}
-        <div className="px-6 py-5 flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto px-6 pt-6 pb-10">
           <div className="max-w-3xl mx-auto space-y-0">
 
             {steps.length === 0 && (
@@ -675,26 +648,24 @@ export default function TestPlanDesigner() {
                   total={steps.length}
                   reqInfo={requestLibrary.find(r => r.id === step.request_id)}
                   isExpanded={expandedStep === step.id}
-                  inputVarDefs={inputVarCache[step.request_id] ?? []}
+                  inputVarDefs={reqCache[step.request_id]?.input_variables ?? []}
+                  outputVarDefs={reqCache[step.request_id]?.extract_variables ?? []}
                   availableOutputs={getAvailableOutputs(idx)}
                   onToggleExpand={() => handleToggleExpand(step)}
                   onUpdate={patch => updateStep(step.id, patch)}
                   onMove={dir => moveStep(idx, dir)}
                   onRemove={() => removeStep(step.id)}
-                  onAddExtract={() => addExtract(step.id)}
-                  onUpdateExtract={(evIdx, patch) => updateExtract(step.id, evIdx, patch)}
-                  onRemoveExtract={evIdx => removeExtract(step.id, evIdx)}
                   onUpdateMapping={m => updateMapping(step.id, m)}
                   onRemoveMapping={varName => removeMapping(step.id, varName)}
                 />
                 {idx < steps.length - 1 && (
-                  <StepConnector hasOutputs={step.extract_variables.some(ev => ev.var_name.trim())} />
+                  <StepConnector hasOutputs={(reqCache[step.request_id]?.extract_variables ?? []).some(ev => ev.var_name.trim())} />
                 )}
               </div>
             ))}
 
             {steps.length > 0 && (
-              <div className="flex justify-center pt-3">
+              <div className="flex justify-center pt-4">
                 <button onClick={() => setShowPicker(true)} className="flex items-center gap-2 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 px-6 py-3 text-sm font-medium text-gray-500 dark:text-gray-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-colors">
                   <span className="text-lg leading-none">+</span>
                   Add Step

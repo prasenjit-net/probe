@@ -137,6 +137,7 @@ async fn run_execution(mut exec: Execution) {
         passed_steps: passed,
         failed_steps: failed,
         step_results,
+        collection_id: plan.collection_id.clone(),
     };
 
     if let Err(e) = storage::write(storage::reports_dir(), &report.id, &report).await {

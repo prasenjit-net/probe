@@ -1,0 +1,44 @@
+{
+  "id": "c1fdc051-cc67-4903-8d33-351996644c2d",
+  "name": "t2",
+  "description": "",
+  "collection_id": "d9743e54-d693-4cf6-a57b-098222c377b6",
+  "steps": [
+    {
+      "id": "7b162499-6d4b-4333-af01-563f56af77e4",
+      "request_id": "7d916690-1dc4-4a28-8e3b-4a04889378ef",
+      "name": "todo_1",
+      "enabled": true,
+      "extract_variables": [],
+      "variable_mappings": [
+        {
+          "var_name": "id",
+          "source": {
+            "kind": "constant",
+            "value": "2"
+          }
+        }
+      ]
+    },
+    {
+      "id": "a1c5f348-a16b-4327-b0c9-884f2512f5e8",
+      "request_id": "daf66fa0-aba4-4d22-9f9f-c34d2c101402",
+      "name": "get_user_by_id",
+      "enabled": true,
+      "extract_variables": [],
+      "variable_mappings": [
+        {
+          "var_name": "userId",
+          "source": {
+            "kind": "step_output",
+            "step_id": "7b162499-6d4b-4333-af01-563f56af77e4",
+            "step_name": "todo_1",
+            "var_name": "userId"
+          }
+        }
+      ]
+    }
+  ],
+  "created_at": "2026-04-04T17:23:36.959912Z",
+  "updated_at": "2026-04-04T17:23:36.959912Z"
+}

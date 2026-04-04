@@ -228,6 +228,7 @@ export interface ExecutionReport {
   passed_steps: number
   failed_steps: number
   step_results: StepResult[]
+  collection_id?: string
 }
 
 export interface ReportSummary {
@@ -242,6 +243,7 @@ export interface ReportSummary {
   total_steps: number
   passed_steps: number
   failed_steps: number
+  collection_id?: string
 }
 
 // ── API Specifications ─────────────────────────────────────────────────────────

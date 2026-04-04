@@ -286,6 +286,8 @@ pub struct ExecutionReport {
     pub passed_steps: usize,
     pub failed_steps: usize,
     pub step_results: Vec<StepResult>,
+    #[serde(default)]
+    pub collection_id: Option<String>,
 }
 
 // ── Request/Response DTOs ──────────────────────────────────────────────────────
@@ -403,6 +405,7 @@ pub struct ReportSummary {
     pub total_steps: usize,
     pub passed_steps: usize,
     pub failed_steps: usize,
+    pub collection_id: Option<String>,
 }
 
 impl From<&ExecutionReport> for ReportSummary {
@@ -419,6 +422,7 @@ impl From<&ExecutionReport> for ReportSummary {
             total_steps: r.total_steps,
             passed_steps: r.passed_steps,
             failed_steps: r.failed_steps,
+            collection_id: r.collection_id.clone(),
         }
     }
 }

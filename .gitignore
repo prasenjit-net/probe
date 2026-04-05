@@ -73,3 +73,7 @@ $RECYCLE.BIN/
 logs/
 *.tmp
 *.bak
+
+# ── Runtime data (JSON storage) ───────────────────────────────────────────────
+# Populated at runtime — not source code.
+data/

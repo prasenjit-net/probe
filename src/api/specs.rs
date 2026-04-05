@@ -11,8 +11,8 @@ use crate::{
     ai_generator,
     auth::check_session,
     models::{
-        Collection, GenerationPreview, HttpRequest, MappingSource, MappingSourcePreview,
-        SpecRecord, SpecSummary, TestPlan, TestPlanStep,
+        Collection, Environment, GenerationPreview, HttpRequest, MappingSource,
+        MappingSourcePreview, SpecRecord, SpecSummary, TestPlan, TestPlanStep,
     },
     state::AppState,
     storage,
@@ -470,6 +470,28 @@ pub async fn import_generation(
             .into_response();
     }
 
+    // 4. Create an environment pre-loaded with base_url (and any other server variables)
+    let env_id = Uuid::new_v4().to_string();
+    let mut env_variables = std::collections::HashMap::new();
+    if !preview.base_url.is_empty() {
+        env_variables.insert("base_url".to_string(), preview.base_url.clone());
+    }
+    let environment = Environment {
+        id: env_id.clone(),
+        name: collection_name.clone(),
+        description: format!(
+            "Auto-generated environment for \"{}\" — set base_url to target the right server",
+            collection_name
+        ),
+        variables: env_variables,
+        created_at: now,
+        updated_at: now,
+    };
+    // Non-fatal: log but don't fail if environment save fails
+    if let Err(e) = storage::write(storage::environments_dir(), &env_id, &environment).await {
+        tracing::warn!("Failed to save generated environment: {e}");
+    }
+
     (
         StatusCode::CREATED,
         Json(serde_json::json!({
@@ -479,6 +501,9 @@ pub async fn import_generation(
             "req_collection_id": req_collection_id,
             "plan_collection_id": plan_collection_id,
             "collection_name": collection_name,
+            "environment_id": env_id,
+            "environment_name": collection_name,
+            "base_url": preview.base_url,
         })),
     )
         .into_response()

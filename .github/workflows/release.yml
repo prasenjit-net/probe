@@ -1,0 +1,218 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version part to increment"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write   # needed to push tags and create releases
+
+jobs:
+  # ─── Calculate next version ──────────────────────────────────────────────────
+  version:
+    name: Calculate version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calc.outputs.version }}
+      tag:     ${{ steps.calc.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full history to find latest tag
+
+      - name: Calculate next semantic version
+        id: calc
+        shell: bash
+        run: |
+          # Find the latest semver tag (vX.Y.Z or X.Y.Z)
+          LATEST=$(git tag --list --sort=-version:refname 'v[0-9]*.[0-9]*.[0-9]*' \
+                   | head -n1)
+
+          if [[ -z "$LATEST" ]]; then
+            # No tags yet — start at 0.0.0
+            MAJOR=0; MINOR=0; PATCH=0
+          else
+            # Strip leading 'v'
+            VERSION="${LATEST#v}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          fi
+
+          case "${{ inputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEXT="${MAJOR}.${MINOR}.${PATCH}"
+          echo "Bumping from ${LATEST:-none} → v${NEXT} (bump=${{ inputs.bump }})"
+          echo "version=${NEXT}"    >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEXT}"       >> "$GITHUB_OUTPUT"
+
+  # ─── Build release binaries ──────────────────────────────────────────────────
+  build:
+    name: Build ${{ matrix.artifact }}
+    needs: version
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: probe-linux-x86_64
+
+          - os: macos-latest          # Apple Silicon (M-series)
+            target: aarch64-apple-darwin
+            artifact: probe-macos-aarch64
+
+          - os: macos-13              # Intel Mac
+            target: x86_64-apple-darwin
+            artifact: probe-macos-x86_64
+
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Rust toolchain ──────────────────────────────────────────────────────
+      - name: Install Rust (stable) + target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-release-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.target }}-release-cargo-
+
+      # ── Node / UI ───────────────────────────────────────────────────────────
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Build UI
+        working-directory: ui
+        run: npm run build
+
+      # ── Stamp version into Cargo.toml ───────────────────────────────────────
+      - name: Stamp version
+        shell: bash
+        run: |
+          sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
+          rm -f Cargo.toml.bak
+
+      # ── Build Rust binary ───────────────────────────────────────────────────
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # ── Package ─────────────────────────────────────────────────────────────
+      - name: Rename binary
+        shell: bash
+        run: |
+          cp target/${{ matrix.target }}/release/probe \
+             ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+          retention-days: 1
+
+  # ─── Tag + GitHub Release ────────────────────────────────────────────────────
+  release:
+    name: Publish release ${{ needs.version.outputs.tag }}
+    needs: [version, build]
+    runs-on: ubuntu-latest
+
+    env:
+      TAG:     ${{ needs.version.outputs.tag }}
+      VERSION: ${{ needs.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── Download all build artifacts ────────────────────────────────────────
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      # ── Create and push the tag ─────────────────────────────────────────────
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create tag ${{ env.TAG }}
+        run: |
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      # ── Generate changelog from commits since last tag ──────────────────────
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          PREV=$(git tag --list --sort=-version:refname 'v[0-9]*.[0-9]*.[0-9]*' \
+                 | grep -v "^${TAG}$" | head -n1)
+
+          if [[ -n "$PREV" ]]; then
+            RANGE="${PREV}..${TAG}"
+            echo "Changes since ${PREV}:"
+          else
+            RANGE="${TAG}"
+            echo "Initial release:"
+          fi
+
+          # Collect commit messages
+          COMMITS=$(git log "${RANGE}" --pretty=format:"- %s (%h)" --no-merges 2>/dev/null || \
+                    git log "${TAG}" --pretty=format:"- %s (%h)" --no-merges)
+
+          # Write multi-line output to env file
+          {
+            echo "notes<<EOF"
+            echo "## What's changed"
+            echo ""
+            echo "$COMMITS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # ── Create GitHub release ────────────────────────────────────────────────
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: "Probe ${{ env.TAG }}"
+          body: ${{ steps.changelog.outputs.notes }}
+          draft: false
+          prerelease: false
+          files: |
+            dist/probe-linux-x86_64/probe-linux-x86_64
+            dist/probe-macos-aarch64/probe-macos-aarch64
+            dist/probe-macos-x86_64/probe-macos-x86_64

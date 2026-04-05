@@ -218,10 +218,10 @@ pub async fn test_fire(
     // Seed variables: user-supplied values override, then fall back to defaults
     let mut variables: HashMap<String, String> = HashMap::new();
     for iv in &req_def.input_variables {
-        if let Some(default) = &iv.default_value {
-            if !default.is_empty() {
-                variables.insert(iv.name.clone(), default.clone());
-            }
+        if let Some(default) = &iv.default_value
+            && !default.is_empty()
+        {
+            variables.insert(iv.name.clone(), default.clone());
         }
     }
     for (k, v) in body.variable_values {

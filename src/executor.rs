@@ -308,10 +308,10 @@ pub async fn execute_step(
             key: kv.key.clone(),
             value: v.clone(),
         });
-        if let Ok(name) = reqwest::header::HeaderName::from_bytes(kv.key.as_bytes()) {
-            if let Ok(val) = reqwest::header::HeaderValue::from_str(&v) {
-                req_builder = req_builder.header(name, val);
-            }
+        if let Ok(name) = reqwest::header::HeaderName::from_bytes(kv.key.as_bytes())
+            && let Ok(val) = reqwest::header::HeaderValue::from_str(&v)
+        {
+            req_builder = req_builder.header(name, val);
         }
     }
 
@@ -509,7 +509,7 @@ fn compare_values(
         AssertionOperator::Contains => {
             let p = actual.contains(expected);
             let snippet = if is_body {
-                format!("body")
+                "body".to_string()
             } else {
                 format!("{actual:?}")
             };
@@ -518,7 +518,7 @@ fn compare_values(
         AssertionOperator::NotContains => {
             let p = !actual.contains(expected);
             let snippet = if is_body {
-                format!("body")
+                "body".to_string()
             } else {
                 format!("{actual:?}")
             };
@@ -585,14 +585,14 @@ fn extract_variable(
             .find(|h| h.key.to_lowercase() == ev.path.to_lowercase())
             .map(|h| h.value.clone()),
         VariableSource::ResponseBody => {
-            if let Some(val) = body_value {
-                if let Ok(jp) = JsonPath::parse(&ev.path) {
-                    let nodes = jp.query(val);
-                    return nodes.first().map(|v| match v {
-                        Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    });
-                }
+            if let Some(val) = body_value
+                && let Ok(jp) = JsonPath::parse(&ev.path)
+            {
+                let nodes = jp.query(val);
+                return nodes.first().map(|v| match v {
+                    Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                });
             }
             // Fallback: return raw body if path is "$" or empty
             if ev.path == "$" || ev.path.is_empty() {

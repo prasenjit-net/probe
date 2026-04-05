@@ -381,7 +381,7 @@ fn parse_generated_request(raw: &str) -> Result<GeneratedRequest> {
         .as_array()
         .unwrap_or(&vec![])
         .iter()
-        .filter_map(|a| parse_assertion(a))
+        .filter_map(parse_assertion)
         .collect();
 
     let input_variables: Vec<InputVariable> = v["input_variables"]
@@ -501,7 +501,7 @@ fn parse_plan(raw: &str, requests: &[GeneratedRequest]) -> Result<PlanOutput> {
                 .as_array()
                 .unwrap_or(&vec![])
                 .iter()
-                .filter_map(|m| parse_var_mapping_preview(m))
+                .filter_map(parse_var_mapping_preview)
                 .collect();
 
             Some(PlanStepPreview {
@@ -731,10 +731,10 @@ pub async fn generate_report_summary(
 fn strip_fences(s: &str) -> String {
     let s = s.trim();
     // Strip ```json ... ``` or ``` ... ```
-    if let Some(inner) = s.strip_prefix("```json").or_else(|| s.strip_prefix("```")) {
-        if let Some(inner) = inner.strip_suffix("```") {
-            return inner.trim().to_string();
-        }
+    if let Some(inner) = s.strip_prefix("```json").or_else(|| s.strip_prefix("```"))
+        && let Some(inner) = inner.strip_suffix("```")
+    {
+        return inner.trim().to_string();
     }
     s.to_string()
 }

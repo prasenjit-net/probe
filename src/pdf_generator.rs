@@ -158,7 +158,7 @@ impl Builder {
     fn multiline(&mut self, raw: &str, x: f32, sz: f32, col: (f32, f32, f32), max_lines: usize) {
         let char_w_mm = sz * 0.042;
         let chars = ((CW - (x - ML)) / char_w_mm) as usize;
-        let chars = chars.max(30).min(200);
+        let chars = chars.clamp(30, 200);
         let advance = sz * 0.40;
         let mut count = 0;
         'outer: for line in raw.split('\n') {
@@ -196,18 +196,13 @@ impl Builder {
             .lines()
             .map(|line| {
                 let l = line.trim_start_matches('#').trim();
-                let l = l
-                    .replace("**", "")
-                    .replace('*', "")
-                    .replace('`', "")
-                    .replace("> ", "");
+                let l = l.replace(['*', '`'], "").replace("> ", "");
                 // bullet points -> dash
-                let l = if l.starts_with("- ") || l.starts_with("• ") {
+                if l.starts_with("- ") || l.starts_with("• ") {
                     format!("  • {}", &l[2..])
                 } else {
                     l
-                };
-                l
+                }
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -215,7 +210,7 @@ impl Builder {
         // Render each line, using bold for lines that were headings
         let char_w_mm = sz * 0.042;
         let chars = ((CW - (x - ML)) / char_w_mm) as usize;
-        let chars = chars.max(30).min(200);
+        let chars = chars.clamp(30, 200);
         let advance = sz * 0.40;
         let mut count = 0;
 
@@ -504,13 +499,13 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
         let v = &v[..v.len().min(80)];
         b.kv_row(&h.key, v, C_REQ_BG);
     }
-    if let Some(ref body) = step.request.body {
-        if !body.is_empty() {
-            b.ensure(7.0);
-            b.text("Body:", ML, S_SMALL, true, C_LABEL);
-            b.dn(4.0);
-            b.multiline(body, ML + 2.0, S_MONO, (0.2, 0.2, 0.2), 12);
-        }
+    if let Some(ref body) = step.request.body
+        && !body.is_empty()
+    {
+        b.ensure(7.0);
+        b.text("Body:", ML, S_SMALL, true, C_LABEL);
+        b.dn(4.0);
+        b.multiline(body, ML + 2.0, S_MONO, (0.2, 0.2, 0.2), 12);
     }
     b.dn(3.0);
 

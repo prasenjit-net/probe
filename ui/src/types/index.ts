@@ -314,6 +314,7 @@ export interface Collection {
   name: string
   description: string
   color: string
+  kind: 'request' | 'plan'
   created_at: string
   updated_at: string
 }

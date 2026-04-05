@@ -88,9 +88,10 @@ export const importGeneration = (preview: GenerationPreview) =>
   api.post<ImportResult>('/specs/import', preview).then(r => r.data)
 
 // ── Collections ───────────────────────────────────────────────────────────────
-export const listCollections = () => api.get<CollectionSummary[]>('/collections').then(r => r.data)
+export const listCollections = (kind: 'request' | 'plan') =>
+  api.get<CollectionSummary[]>('/collections', { params: { kind } }).then(r => r.data)
 export const getCollection = (id: string) => api.get<Collection>(`/collections/${id}`).then(r => r.data)
-export const createCollection = (data: { name: string; description?: string; color?: string }) =>
+export const createCollection = (data: { name: string; description?: string; color?: string; kind: 'request' | 'plan' }) =>
   api.post<Collection>('/collections', data).then(r => r.data)
 export const updateCollection = (id: string, data: { name: string; description?: string; color?: string }) =>
   api.put<Collection>(`/collections/${id}`, data).then(r => r.data)

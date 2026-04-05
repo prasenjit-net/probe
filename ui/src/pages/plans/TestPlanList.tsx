@@ -278,7 +278,7 @@ export default function TestPlanList() {
   const load = async () => {
     try {
       setLoading(true)
-      const [ps, cols] = await Promise.all([listTestPlans(), listCollections()])
+      const [ps, cols] = await Promise.all([listTestPlans(), listCollections('plan')])
       setPlans(ps)
       setCollections(cols)
     } catch {
@@ -307,6 +307,8 @@ export default function TestPlanList() {
     try {
       await deleteCollection(deleteColTarget.id)
       setCollections(prev => prev.filter(c => c.id !== deleteColTarget.id))
+      // Also remove plans that belonged to this collection from local state
+      setPlans(prev => prev.filter(p => p.collection_id !== deleteColTarget.id))
     } catch {
       setError('Failed to delete collection')
     } finally {
@@ -318,7 +320,7 @@ export default function TestPlanList() {
     if (!newName.trim()) return
     setCreating(true)
     try {
-      const col = await createCollection({ name: newName.trim(), color: newColor })
+      const col = await createCollection({ name: newName.trim(), color: newColor, kind: 'plan' })
       setCollections(prev => [...prev, col].sort((a, b) => a.name.localeCompare(b.name)))
       setNewName(''); setNewColor('indigo'); setShowCreate(false)
     } catch {
@@ -501,7 +503,13 @@ export default function TestPlanList() {
       <ConfirmDialog
         open={!!deleteColTarget}
         title="Delete collection"
-        message={`"${deleteColTarget?.name}" will be removed. Plans inside will become uncollected.`}
+        message={(() => {
+          const count = plans.filter(p => p.collection_id === deleteColTarget?.id).length
+          const itemNote = count > 0
+            ? ` ${count} test plan${count !== 1 ? 's' : ''} inside it will also be permanently deleted.`
+            : ' No test plans are inside it.'
+          return `"${deleteColTarget?.name}" will be permanently removed.${itemNote}`
+        })()}
         confirmLabel="Delete" danger
         onConfirm={handleDeleteCol} onCancel={() => setDeleteColTarget(null)}
       />

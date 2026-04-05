@@ -141,7 +141,7 @@ export default function ReportList() {
 
   const load = async () => {
     try {
-      const [reps, cols] = await Promise.all([listReports(), listCollections()])
+      const [reps, cols] = await Promise.all([listReports(), listCollections('plan')])
       setReports(reps)
       setCollections(cols)
     } catch {

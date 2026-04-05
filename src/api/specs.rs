@@ -226,26 +226,41 @@ pub async fn import_generation(
 
     let now = Utc::now();
 
-    // 0. Create a collection to group all generated items
-    let collection_id = Uuid::new_v4().to_string();
-    let collection_name = preview.plan_name.clone();
-    let collection = Collection {
-        id: collection_id.clone(),
+    // 0. Create two separate collections — one for requests, one for the plan
+    let req_collection_id  = Uuid::new_v4().to_string();
+    let plan_collection_id = Uuid::new_v4().to_string();
+    let collection_name    = preview.plan_name.clone();
+    let description        = format!("AI-generated from OpenAPI spec ({})", preview.spec_id);
+
+    let req_collection = Collection {
+        id: req_collection_id.clone(),
         name: collection_name.clone(),
-        description: format!("AI-generated from OpenAPI spec ({})", preview.spec_id),
+        description: description.clone(),
         color: "indigo".to_string(),
+        kind: "request".to_string(),
         created_at: now,
         updated_at: now,
     };
-    if let Err(e) = storage::write(storage::collections_dir(), &collection_id, &collection).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-            "error": format!("Failed to create collection: {e}")
-        }))).into_response();
+    let plan_collection = Collection {
+        id: plan_collection_id.clone(),
+        name: collection_name.clone(),
+        description: description.clone(),
+        color: "indigo".to_string(),
+        kind: "plan".to_string(),
+        created_at: now,
+        updated_at: now,
+    };
+    for (cid, col) in [(&req_collection_id, &req_collection), (&plan_collection_id, &plan_collection)] {
+        if let Err(e) = storage::write(storage::collections_dir(), cid, col).await {
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": format!("Failed to create collection: {e}")
+            }))).into_response();
+        }
     }
 
     let mut saved_requests: Vec<HttpRequest> = Vec::new();
 
-    // 1. Save each generated request (assigned to the new collection)
+    // 1. Save each generated request (assigned to the request collection)
     for gen_req in &preview.requests {
         let id = Uuid::new_v4().to_string();
         let req = HttpRequest {
@@ -260,7 +275,7 @@ pub async fn import_generation(
             assertions: gen_req.assertions.clone(),
             input_variables: gen_req.input_variables.clone(),
             extract_variables: gen_req.extract_variables.clone(),
-            collection_id: Some(collection_id.clone()),
+            collection_id: Some(req_collection_id.clone()),
             created_at: now,
             updated_at: now,
         };
@@ -333,13 +348,13 @@ pub async fn import_generation(
         });
     }
 
-    // 3. Save test plan (assigned to the same collection)
+    // 3. Save test plan (assigned to the plan collection)
     let plan_id = Uuid::new_v4().to_string();
     let plan = TestPlan {
         id: plan_id.clone(),
         name: preview.plan_name.clone(),
         description: preview.plan_description.clone(),
-        collection_id: Some(collection_id.clone()),
+        collection_id: Some(plan_collection_id.clone()),
         steps: plan_steps,
         created_at: now,
         updated_at: now,
@@ -355,7 +370,8 @@ pub async fn import_generation(
         "requests_created": saved_requests.len(),
         "test_plan_id": plan_id,
         "test_plan_name": plan.name,
-        "collection_id": collection_id,
+        "req_collection_id": req_collection_id,
+        "plan_collection_id": plan_collection_id,
         "collection_name": collection_name,
     }))).into_response()
 }

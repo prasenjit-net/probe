@@ -268,7 +268,7 @@ export default function RequestList() {
   const load = async () => {
     try {
       setLoading(true)
-      const [reqs, cols] = await Promise.all([listRequests(), listCollections()])
+      const [reqs, cols] = await Promise.all([listRequests(), listCollections('request')])
       setRequests(reqs)
       setCollections(cols)
     } catch {
@@ -297,6 +297,8 @@ export default function RequestList() {
     try {
       await apiDeleteCollection(deleteCollection.id)
       setCollections(prev => prev.filter(c => c.id !== deleteCollection.id))
+      // Also remove requests that belonged to this collection from local state
+      setRequests(prev => prev.filter(r => r.collection_id !== deleteCollection.id))
     } catch {
       setError('Failed to delete collection')
     } finally {
@@ -308,7 +310,7 @@ export default function RequestList() {
     if (!newName.trim()) return
     setCreating(true)
     try {
-      const col = await apiCreateCollection({ name: newName.trim(), color: newColor })
+      const col = await apiCreateCollection({ name: newName.trim(), color: newColor, kind: 'request' })
       setCollections(prev => [...prev, col].sort((a, b) => a.name.localeCompare(b.name)))
       setNewName('')
       setNewColor('indigo')
@@ -507,7 +509,13 @@ export default function RequestList() {
       <ConfirmDialog
         open={!!deleteCollection}
         title="Delete collection"
-        message={`"${deleteCollection?.name}" will be removed. The requests inside will become uncollected.`}
+        message={(() => {
+          const count = requests.filter(r => r.collection_id === deleteCollection?.id).length
+          const itemNote = count > 0
+            ? ` ${count} request${count !== 1 ? 's' : ''} inside it will also be permanently deleted.`
+            : ' No requests are inside it.'
+          return `"${deleteCollection?.name}" will be permanently removed.${itemNote}`
+        })()}
         confirmLabel="Delete"
         danger
         onConfirm={handleDeleteCollection}

@@ -530,6 +530,9 @@ pub struct Collection {
     /// Tailwind color name e.g. "indigo", "emerald", "blue", "amber", "rose", "purple", "teal", "orange"
     #[serde(default = "default_collection_color")]
     pub color: String,
+    /// "request" or "plan" — collections are scoped to their item type
+    #[serde(default = "default_collection_kind")]
+    pub kind: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -538,12 +541,17 @@ fn default_collection_color() -> String {
     "indigo".to_string()
 }
 
+fn default_collection_kind() -> String {
+    "request".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectionSummary {
     pub id: String,
     pub name: String,
     pub description: String,
     pub color: String,
+    pub kind: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -555,6 +563,7 @@ impl From<&Collection> for CollectionSummary {
             name: c.name.clone(),
             description: c.description.clone(),
             color: c.color.clone(),
+            kind: c.kind.clone(),
             created_at: c.created_at,
             updated_at: c.updated_at,
         }
@@ -568,6 +577,8 @@ pub struct CreateCollection {
     pub description: String,
     #[serde(default = "default_collection_color")]
     pub color: String,
+    #[serde(default = "default_collection_kind")]
+    pub kind: String,
 }
 
 /// Payload for the lightweight "move item to a collection" endpoint.

@@ -8,10 +8,10 @@
 use crate::{
     ai_generator,
     models::{
-        Assertion, AssertionOperator, AssertionResult, AssertionType, Execution, ExecutionReport,
-        ExecutionStatus, ExtractVariable, HttpMethod, HttpRequest, KeyValue, MappingSource,
-        OverallStatus, RequestSnapshot, ResolvedVariable, ResponseSnapshot, StepResult, TestPlan,
-        VariableMapping, VariableSource,
+        Assertion, AssertionOperator, AssertionResult, AssertionType, Environment, Execution,
+        ExecutionReport, ExecutionStatus, ExtractVariable, HttpMethod, HttpRequest, KeyValue,
+        MappingSource, OverallStatus, RequestSnapshot, ResolvedVariable, ResponseSnapshot,
+        StepResult, TestPlan, VariableMapping, VariableSource,
     },
     state::AppState,
     storage,
@@ -84,6 +84,18 @@ async fn run_execution(mut exec: Execution, state: &AppState) {
     let started_at = Utc::now();
     let mut step_results: Vec<StepResult> = Vec::new();
     let mut variables: HashMap<String, String> = HashMap::new();
+
+    // Seed lowest-priority variables from the selected environment (if any).
+    if let Some(env_id) = &exec.environment_id {
+        match storage::read::<Environment>(storage::environments_dir(), env_id).await {
+            Ok(env) => {
+                tracing::debug!(env = %env.name, vars = env.variables.len(), "Seeding environment variables");
+                variables.extend(env.variables);
+            }
+            Err(e) => tracing::warn!("Could not load environment {env_id}: {e}"),
+        }
+    }
+
     let mut any_failed = false;
 
     for step in plan.steps.iter().filter(|s| s.enabled) {

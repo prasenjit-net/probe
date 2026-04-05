@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { EnvironmentProvider } from './context/EnvironmentContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicRoute from './components/PublicRoute'
 import Spinner from './components/Spinner'
@@ -18,6 +19,7 @@ const ReportDetail     = lazy(() => import('./pages/reports/ReportDetail'))
 const SpecList         = lazy(() => import('./pages/specs/SpecList'))
 const GeneratePreview  = lazy(() => import('./pages/specs/GeneratePreview'))
 const ArchivePage      = lazy(() => import('./pages/archive/ArchivePage'))
+const EnvironmentsPage = lazy(() => import('./pages/environments/EnvironmentsPage'))
 
 const SLOW_THRESHOLD_MS = 5_000
 
@@ -56,6 +58,7 @@ function AppRoutes() {
         <Route path="/specs" element={<ProtectedRoute><SpecList /></ProtectedRoute>} />
         <Route path="/specs/:id/generate" element={<ProtectedRoute><GeneratePreview /></ProtectedRoute>} />
         <Route path="/archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
+        <Route path="/environments" element={<ProtectedRoute><EnvironmentsPage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>
@@ -66,9 +69,11 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <EnvironmentProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </EnvironmentProvider>
       </AuthProvider>
     </ThemeProvider>
   )

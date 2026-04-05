@@ -1,6 +1,7 @@
 pub mod archive;
 pub mod auth_routes;
 pub mod collections;
+pub mod environments;
 pub mod executions;
 pub mod health;
 pub mod metrics_handler;
@@ -115,6 +116,17 @@ pub fn create_router(state: AppState) -> Router {
             post(archive::restore_archive),
         )
         .route("/api/archive/{name}", axum::routing::delete(archive::delete_archive))
+        // ── Environments ──────────────────────────────────────────────────────
+        .route(
+            "/api/environments",
+            get(environments::list_environments).post(environments::create_environment),
+        )
+        .route(
+            "/api/environments/{id}",
+            get(environments::get_environment)
+                .put(environments::update_environment)
+                .delete(environments::delete_environment),
+        )
         // ── SPA fallback ──────────────────────────────────────────────────────
         .fallback(embedded::serve_static)
         // ── Global layers ─────────────────────────────────────────────────────

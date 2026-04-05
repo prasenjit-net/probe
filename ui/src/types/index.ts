@@ -173,6 +173,19 @@ export interface Execution {
   started_at?: string
   completed_at?: string
   report_id?: string
+  environment_id?: string
+  environment_name?: string
+}
+
+// ── Environment ───────────────────────────────────────────────────────────────
+
+export interface Environment {
+  id: string
+  name: string
+  description: string
+  variables: Record<string, string>
+  created_at: string
+  updated_at: string
 }
 
 // ── Reports ───────────────────────────────────────────────────────────────────

@@ -2,21 +2,24 @@ import { useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { useEnvironment } from '../context/EnvironmentContext'
 import {
   LayoutDashboard, Link2, ClipboardList, PlayCircle,
-  BarChart2, LogOut, Sun, Moon, Menu, X, Zap, FileJson, Archive,
+  BarChart2, LogOut, Sun, Moon, Menu, X, Zap, FileJson, Archive, Globe,
+  ChevronDown,
 } from 'lucide-react'
 
 interface LayoutProps { children: ReactNode }
 
 const navItems = [
-  { to: '/dashboard',   label: 'Dashboard',      icon: LayoutDashboard, end: true },
-  { to: '/requests',    label: 'Requests',        icon: Link2 },
-  { to: '/test-plans',  label: 'Test Plans',      icon: ClipboardList },
-  { to: '/executions',  label: 'Executions',      icon: PlayCircle },
-  { to: '/reports',     label: 'Reports',         icon: BarChart2 },
-  { to: '/specs',       label: 'API Specs',       icon: FileJson },
-  { to: '/archive',     label: 'Archives',        icon: Archive },
+  { to: '/dashboard',     label: 'Dashboard',      icon: LayoutDashboard, end: true },
+  { to: '/requests',      label: 'Requests',        icon: Link2 },
+  { to: '/test-plans',    label: 'Test Plans',      icon: ClipboardList },
+  { to: '/executions',    label: 'Executions',      icon: PlayCircle },
+  { to: '/reports',       label: 'Reports',         icon: BarChart2 },
+  { to: '/specs',         label: 'API Specs',       icon: FileJson },
+  { to: '/environments',  label: 'Environments',    icon: Globe },
+  { to: '/archive',       label: 'Archives',        icon: Archive },
 ]
 
 function UserAvatar({ name }: { name: string }) {
@@ -30,7 +33,10 @@ function UserAvatar({ name }: { name: string }) {
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const { environments, activeEnvId, setActiveEnvId } = useEnvironment()
   const navigate = useNavigate()
+  const [envOpen, setEnvOpen] = useState(false)
+  const activeEnv = environments.find(e => e.id === activeEnvId)
 
   const handleLogout = async () => {
     await logout()
@@ -94,6 +100,57 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 
       {/* Footer */}
       <div className="border-t border-gray-100 dark:border-gray-800/80 p-2 space-y-0.5">
+
+        {/* Active environment selector */}
+        <div className="relative">
+          <button
+            onClick={() => setEnvOpen(v => !v)}
+            className="w-full flex items-center gap-2 rounded-lg px-3 py-[7px] text-[13px] font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+          >
+            <Globe className={`w-[15px] h-[15px] shrink-0 ${activeEnv ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-400'}`} strokeWidth={1.75} />
+            <span className="flex-1 text-left truncate">
+              {activeEnv ? activeEnv.name : <span className="text-gray-400 italic">No environment</span>}
+            </span>
+            <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform ${envOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {envOpen && (
+            <div className="absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden z-50">
+              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 border-b border-gray-100 dark:border-gray-800">
+                Environment
+              </div>
+              <button
+                onClick={() => { setActiveEnvId(null); setEnvOpen(false) }}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition-colors ${
+                  !activeEnvId
+                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full border-2 shrink-0 ${!activeEnvId ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 dark:border-gray-600'}`} />
+                None
+              </button>
+              {environments.map(e => (
+                <button
+                  key={e.id}
+                  onClick={() => { setActiveEnvId(e.id); setEnvOpen(false) }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition-colors ${
+                    activeEnvId === e.id
+                      ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full border-2 shrink-0 ${activeEnvId === e.id ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 dark:border-gray-600'}`} />
+                  <span className="truncate">{e.name}</span>
+                </button>
+              ))}
+              {environments.length === 0 && (
+                <p className="px-3 py-2 text-xs text-gray-400 italic">No environments defined yet.</p>
+              )}
+            </div>
+          )}
+        </div>
+
         <button
           onClick={toggleTheme}
           className="w-full flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"

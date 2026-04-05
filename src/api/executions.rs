@@ -92,6 +92,17 @@ pub async fn enqueue_execution(
                 .into_response();
         }
     };
+
+    // Optionally resolve the environment name for display purposes
+    let environment_name = if let Some(ref env_id) = body.environment_id {
+        storage::read::<crate::models::Environment>(storage::environments_dir(), env_id)
+            .await
+            .ok()
+            .map(|e| e.name)
+    } else {
+        None
+    };
+
     let execution = Execution {
         id: Uuid::new_v4().to_string(),
         test_plan_id: plan.id,
@@ -102,6 +113,8 @@ pub async fn enqueue_execution(
         started_at: None,
         completed_at: None,
         report_id: None,
+        environment_id: body.environment_id,
+        environment_name,
     };
     let _lock = state.execution_lock.lock().await;
     let mut items = read_all(&state).await;

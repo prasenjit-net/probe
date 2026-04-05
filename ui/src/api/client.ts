@@ -6,6 +6,7 @@ import type {
   HealthData, MetricsData, MeData,
   SpecSummary, SpecRecord, GenerationPreview, ImportResult,
   Collection, CollectionSummary,
+  Environment,
 } from '../types'
 
 export const api = axios.create({
@@ -42,6 +43,7 @@ export const testFireRequest = (data: {
   headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
   input_variables: InputVariable[]; extract_variables: ExtractVariable[];
   variable_values?: Record<string, string>;
+  environment_id?: string;
 }) => api.post<StepResult>('/requests/test-fire', data).then(r => r.data)
 
 // ── Test Plans ────────────────────────────────────────────────────────────────
@@ -58,7 +60,7 @@ export const moveTestPlan = (id: string, collectionId: string | null) =>
 // ── Executions ────────────────────────────────────────────────────────────────
 export const listExecutions = () => api.get<Execution[]>('/executions').then(r => r.data)
 export const getExecution = (id: string) => api.get<Execution>(`/executions/${id}`).then(r => r.data)
-export const enqueueExecution = (data: { test_plan_id: string; scheduled_at?: string }) =>
+export const enqueueExecution = (data: { test_plan_id: string; scheduled_at?: string; environment_id?: string }) =>
   api.post<Execution>('/executions', data).then(r => r.data)
 export const cancelExecution = (id: string) => api.delete(`/executions/${id}`)
 export const clearExecutions = () => api.delete<{ cleared: number }>('/executions').then(r => r.data)
@@ -119,3 +121,19 @@ export const restoreArchive = (name: string) =>
 
 export const deleteArchive = (name: string) =>
   api.delete(`/archive/${encodeURIComponent(name)}`)
+
+// ── Environments ──────────────────────────────────────────────────────────────
+export const listEnvironments = () =>
+  api.get<Environment[]>('/environments').then(r => r.data)
+
+export const getEnvironment = (id: string) =>
+  api.get<Environment>(`/environments/${id}`).then(r => r.data)
+
+export const createEnvironment = (data: { name: string; description?: string; variables?: Record<string, string> }) =>
+  api.post<Environment>('/environments', data).then(r => r.data)
+
+export const updateEnvironment = (id: string, data: { name: string; description?: string; variables?: Record<string, string> }) =>
+  api.put<Environment>(`/environments/${id}`, data).then(r => r.data)
+
+export const deleteEnvironment = (id: string) =>
+  api.delete(`/environments/${id}`)

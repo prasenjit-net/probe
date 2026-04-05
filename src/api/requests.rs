@@ -2,7 +2,8 @@ use crate::{
     auth::check_session,
     executor,
     models::{
-        CreateHttpRequest, HttpRequest, HttpRequestSummary, MoveToCollection, TestFireRequest,
+        CreateHttpRequest, Environment, HttpRequest, HttpRequestSummary, MoveToCollection,
+        TestFireRequest,
     },
     state::AppState,
     storage,
@@ -215,15 +216,27 @@ pub async fn test_fire(
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .unwrap_or_default();
-    // Seed variables: user-supplied values override, then fall back to defaults
+    // Seed variables: environment (lowest) → defaults → user-supplied (highest)
     let mut variables: HashMap<String, String> = HashMap::new();
+
+    // 1. Environment variables (lowest priority)
+    if let Some(ref env_id) = body.environment_id {
+        match storage::read::<Environment>(storage::environments_dir(), env_id).await {
+            Ok(env) => variables.extend(env.variables),
+            Err(e) => tracing::warn!("Could not load environment {env_id} for test-fire: {e}"),
+        }
+    }
+
+    // 2. Input variable defaults
     for iv in &req_def.input_variables {
         if let Some(default) = &iv.default_value
             && !default.is_empty()
         {
-            variables.insert(iv.name.clone(), default.clone());
+            variables.entry(iv.name.clone()).or_insert_with(|| default.clone());
         }
     }
+
+    // 3. User-supplied overrides (highest priority)
     for (k, v) in body.variable_values {
         if !v.is_empty() {
             variables.insert(k, v);

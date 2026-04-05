@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
-import { RefreshCw, PlayCircle, X, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, Ban, FileText, Trash2 } from 'lucide-react'
+import { RefreshCw, PlayCircle, X, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, Ban, FileText, Trash2, Globe } from 'lucide-react'
 import Layout from '../../components/Layout'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { listExecutions, listTestPlans, enqueueExecution, cancelExecution, clearExecutions } from '../../api/client'
+import { useEnvironment } from '../../context/EnvironmentContext'
 import type { Execution, ExecutionStatus, TestPlanSummary } from '../../types'
 
 const STATUS_CONFIG: Record<ExecutionStatus, { label: string; dot: string; text: string; bg: string; icon: typeof Clock }> = {
@@ -41,6 +42,8 @@ export default function ExecutionQueue() {
   const [scheduling, setScheduling] = useState(false)
   const [error, setError]           = useState('')
   const navigate = (url: string) => { window.location.href = url }
+  const { environments, activeEnvId } = useEnvironment()
+  const [selectedEnvId, setSelectedEnvId] = useState<string>('')
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +77,7 @@ export default function ExecutionQueue() {
       await enqueueExecution({
         test_plan_id: selectedPlan,
         scheduled_at: scheduleAt ? new Date(scheduleAt).toISOString() : undefined,
+        environment_id: selectedEnvId || undefined,
       })
       setShowModal(false); setScheduleAt('')
       await load()
@@ -142,7 +146,7 @@ export default function ExecutionQueue() {
               Clear History
             </button>
             <button
-              onClick={() => setShowModal(true)}
+              onClick={() => { setSelectedEnvId(activeEnvId ?? ''); setShowModal(true) }}
               className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
             >
               <PlayCircle className="w-4 h-4" strokeWidth={2} />
@@ -183,7 +187,7 @@ export default function ExecutionQueue() {
             <p className="text-base font-semibold text-gray-700 dark:text-gray-300">No executions yet</p>
             <p className="text-sm text-gray-400 mt-1">Run a test plan to see executions here.</p>
             <button
-              onClick={() => setShowModal(true)}
+              onClick={() => { setSelectedEnvId(activeEnvId ?? ''); setShowModal(true) }}
               className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
             >
               <PlayCircle className="w-4 h-4" strokeWidth={2} />
@@ -209,6 +213,12 @@ export default function ExecutionQueue() {
                       : `Created · ${fmtTime(ex.created_at)}`}
                     {ex.started_at && ` · Started ${fmtTime(ex.started_at)}`}
                     {ex.completed_at && ` · Finished ${fmtTime(ex.completed_at)}`}
+                    {ex.environment_name && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 text-indigo-500 dark:text-indigo-400">
+                        <Globe className="w-2.5 h-2.5" />
+                        {ex.environment_name}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
@@ -261,6 +271,21 @@ export default function ExecutionQueue() {
                 <select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value)} className={inp}>
                   {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5" />
+                  Environment
+                </label>
+                <select value={selectedEnvId} onChange={e => setSelectedEnvId(e.target.value)} className={inp}>
+                  <option value="">None (no environment)</option>
+                  {environments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+                {selectedEnvId && (
+                  <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-400">
+                    {Object.keys(environments.find(e => e.id === selectedEnvId)?.variables ?? {}).length} variable(s) will be injected
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">

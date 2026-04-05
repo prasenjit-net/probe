@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { ArrowDownToLine, ArrowUpFromLine, Info, Play, ChevronDown, ChevronUp, Check, X } from 'lucide-react'
 import Layout from '../../components/Layout'
 import { getRequest, createRequest, updateRequest, testFireRequest } from '../../api/client'
+import { useEnvironment } from '../../context/EnvironmentContext'
 import type {
   HttpMethod, BodyType, KeyValue, Assertion, AssertionType, AssertionOperator,
   InputVariable, ExtractVariable, VariableSource, StepResult,
@@ -354,6 +355,7 @@ export default function RequestDesigner() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const isEdit = Boolean(id)
+  const { activeEnvId } = useEnvironment()
 
   const [name, setName]             = useState('')
   const [description, setDescription] = useState('')
@@ -453,7 +455,11 @@ export default function RequestDesigner() {
     setShowVarModal(false)
     setFiring(true); setFireResult(null)
     try {
-      const result = await testFireRequest({ ...buildPayload(), variable_values: variableValues })
+      const result = await testFireRequest({
+        ...buildPayload(),
+        variable_values: variableValues,
+        environment_id: activeEnvId ?? undefined,
+      })
       setFireResult(result)
     } catch {
       setError('Test fire failed. Is the server running?')

@@ -1,6 +1,21 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+/// Logical execution environment with a named variable map.
+/// Variables are injected as the lowest-priority seed before step mappings run.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Environment {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    /// Flat key → value map. Values can be referenced as `{{key}}` in requests.
+    #[serde(default)]
+    pub variables: std::collections::HashMap<String, String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 // ── HTTP Method ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -219,6 +234,11 @@ pub struct Execution {
     pub started_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub report_id: Option<String>,
+    /// Optional environment whose variables are seeded before step mappings.
+    #[serde(default)]
+    pub environment_id: Option<String>,
+    #[serde(default)]
+    pub environment_name: Option<String>,
 }
 
 // ── Execution Report ───────────────────────────────────────────────────────────
@@ -325,6 +345,9 @@ pub struct TestFireRequest {
     /// Constant values to inject for each `{{placeholder}}`.
     #[serde(default)]
     pub variable_values: std::collections::HashMap<String, String>,
+    /// Optional environment to seed base variables from (lowest priority).
+    #[serde(default)]
+    pub environment_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -340,6 +363,8 @@ pub struct CreateTestPlan {
 pub struct CreateExecution {
     pub test_plan_id: String,
     pub scheduled_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub environment_id: Option<String>,
 }
 
 // ── Summary types (for list endpoints) ────────────────────────────────────────

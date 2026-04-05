@@ -20,10 +20,20 @@ const EnvironmentContext = createContext<EnvironmentContextValue>({
 
 const STORAGE_KEY = 'probe_active_env_id'
 
+const readStorage = (): string | null => {
+  try { return localStorage.getItem(STORAGE_KEY) } catch { return null }
+}
+const writeStorage = (id: string | null): void => {
+  try {
+    if (id) localStorage.setItem(STORAGE_KEY, id)
+    else localStorage.removeItem(STORAGE_KEY)
+  } catch { /* private browsing or storage full — ignore */ }
+}
+
 export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const [environments, setEnvironments] = useState<Environment[]>([])
   const [activeEnvId, setActiveEnvIdState] = useState<string | null>(
-    () => localStorage.getItem(STORAGE_KEY)
+    () => readStorage()
   )
 
   const reload = useCallback(async () => {
@@ -33,7 +43,7 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
       // Clear stale selection if the env was deleted
       setActiveEnvIdState(prev => {
         if (prev && !envs.find(e => e.id === prev)) {
-          localStorage.removeItem(STORAGE_KEY)
+          writeStorage(null)
           return null
         }
         return prev
@@ -50,11 +60,7 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
 
   const setActiveEnvId = (id: string | null) => {
     setActiveEnvIdState(id)
-    if (id) {
-      localStorage.setItem(STORAGE_KEY, id)
-    } else {
-      localStorage.removeItem(STORAGE_KEY)
-    }
+    writeStorage(id)
   }
 
   const activeEnv = environments.find(e => e.id === activeEnvId) ?? null

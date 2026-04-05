@@ -333,6 +333,7 @@ export default function TestPlanList() {
   }
 
   const handleExecute = async (plan: TestPlanSummary) => {
+    if (executing) return   // prevent double-enqueue while one is in flight
     setExecuting(plan.id)
     try {
       await enqueueExecution({ test_plan_id: plan.id, environment_id: activeEnvId ?? undefined })

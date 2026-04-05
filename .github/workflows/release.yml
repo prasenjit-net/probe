@@ -57,10 +57,39 @@ jobs:
           echo "version=${NEXT}"    >> "$GITHUB_OUTPUT"
           echo "tag=v${NEXT}"       >> "$GITHUB_OUTPUT"
 
+  # ─── Build UI once, share as artifact ────────────────────────────────────────
+  build-ui:
+    name: Build UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Build UI
+        working-directory: ui
+        run: npm run build
+
+      - name: Upload UI dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+          retention-days: 1
+
   # ─── Build release binaries ──────────────────────────────────────────────────
   build:
     name: Build ${{ matrix.artifact }}
-    needs: version
+    needs: [version, build-ui]
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -72,22 +101,25 @@ jobs:
             artifact: probe-linux-x86_64
             ext: ""
 
-          - os: macos-latest          # Apple Silicon (M-series)
+          # Both macOS targets built on macos-latest (Apple Silicon).
+          # The x86_64 target is cross-compiled using the standard Xcode
+          # toolchain — avoids the slow / stuck macos-12 runner.
+          - os: macos-latest
             target: aarch64-apple-darwin
             artifact: probe-macos-aarch64
             ext: ""
 
-          - os: macos-12              # Intel Mac
+          - os: macos-latest
             target: x86_64-apple-darwin
             artifact: probe-macos-x86_64
             ext: ""
 
-          - os: windows-latest        # Windows x86_64
+          - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: probe-windows-x86_64.exe
             ext: ".exe"
 
-          - os: windows-latest        # Windows ARM64
+          - os: windows-latest
             target: aarch64-pc-windows-msvc
             artifact: probe-windows-aarch64.exe
             ext: ".exe"
@@ -97,6 +129,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # ── Download pre-built UI ───────────────────────────────────────────────
+      - name: Download UI dist
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
 
       # ── Rust toolchain ──────────────────────────────────────────────────────
       - name: Install Rust (stable) + target
@@ -113,21 +152,6 @@ jobs:
             target
           key: ${{ runner.os }}-${{ matrix.target }}-release-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-${{ matrix.target }}-release-cargo-
-      # ── Node / UI ───────────────────────────────────────────────────────────
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: ui/package-lock.json
-
-      - name: Install UI dependencies
-        working-directory: ui
-        run: npm ci
-
-      - name: Build UI
-        working-directory: ui
-        run: npm run build
 
       # ── Stamp version into Cargo.toml ───────────────────────────────────────
       - name: Stamp version
@@ -174,6 +198,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist/
+          pattern: probe-*
+          merge-multiple: true
 
       # ── Create and push the tag ─────────────────────────────────────────────
       - name: Configure git
@@ -202,11 +228,9 @@ jobs:
             echo "Initial release:"
           fi
 
-          # Collect commit messages
           COMMITS=$(git log "${RANGE}" --pretty=format:"- %s (%h)" --no-merges 2>/dev/null || \
                     git log "${TAG}" --pretty=format:"- %s (%h)" --no-merges)
 
-          # Write multi-line output to env file
           {
             echo "notes<<EOF"
             echo "## What's changed"
@@ -224,9 +248,5 @@ jobs:
           body: ${{ steps.changelog.outputs.notes }}
           draft: false
           prerelease: false
-          files: |
-            dist/probe-linux-x86_64/probe-linux-x86_64
-            dist/probe-macos-aarch64/probe-macos-aarch64
-            dist/probe-macos-x86_64/probe-macos-x86_64
-            dist/probe-windows-x86_64.exe/probe-windows-x86_64.exe
-            dist/probe-windows-aarch64.exe/probe-windows-aarch64.exe
+          files: dist/*
+

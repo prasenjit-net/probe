@@ -70,14 +70,27 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: probe-linux-x86_64
+            ext: ""
 
           - os: macos-latest          # Apple Silicon (M-series)
             target: aarch64-apple-darwin
             artifact: probe-macos-aarch64
+            ext: ""
 
           - os: macos-12              # Intel Mac
             target: x86_64-apple-darwin
             artifact: probe-macos-x86_64
+            ext: ""
+
+          - os: windows-latest        # Windows x86_64
+            target: x86_64-pc-windows-msvc
+            artifact: probe-windows-x86_64.exe
+            ext: ".exe"
+
+          - os: windows-latest        # Windows ARM64
+            target: aarch64-pc-windows-msvc
+            artifact: probe-windows-aarch64.exe
+            ext: ".exe"
 
     env:
       VERSION: ${{ needs.version.outputs.version }}
@@ -100,7 +113,6 @@ jobs:
             target
           key: ${{ runner.os }}-${{ matrix.target }}-release-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-${{ matrix.target }}-release-cargo-
-
       # ── Node / UI ───────────────────────────────────────────────────────────
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -132,7 +144,7 @@ jobs:
       - name: Rename binary
         shell: bash
         run: |
-          cp target/${{ matrix.target }}/release/probe \
+          cp target/${{ matrix.target }}/release/probe${{ matrix.ext }} \
              ${{ matrix.artifact }}
 
       - name: Upload artifact
@@ -216,3 +228,5 @@ jobs:
             dist/probe-linux-x86_64/probe-linux-x86_64
             dist/probe-macos-aarch64/probe-macos-aarch64
             dist/probe-macos-x86_64/probe-macos-x86_64
+            dist/probe-windows-x86_64.exe/probe-windows-x86_64.exe
+            dist/probe-windows-aarch64.exe/probe-windows-aarch64.exe

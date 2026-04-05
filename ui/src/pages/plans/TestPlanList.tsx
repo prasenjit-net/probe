@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import Layout from '../../components/Layout'
 import ConfirmDialog from '../../components/ConfirmDialog'
-import { listTestPlans, deleteTestPlan, enqueueExecution, listCollections, updateCollection, moveTestPlan } from '../../api/client'
+import { listTestPlans, deleteTestPlan, enqueueExecution, listCollections, createCollection, deleteCollection, updateCollection, moveTestPlan } from '../../api/client'
 import type { TestPlanSummary, CollectionSummary } from '../../types'
 
 const PALETTE: Record<string, { dot: string; border: string; header: string; badge: string }> = {
@@ -305,8 +305,7 @@ export default function TestPlanList() {
   const handleDeleteCol = async () => {
     if (!deleteColTarget) return
     try {
-      const { deleteCollection: delCol } = await import('../../api/client')
-      await delCol(deleteColTarget.id)
+      await deleteCollection(deleteColTarget.id)
       setCollections(prev => prev.filter(c => c.id !== deleteColTarget.id))
     } catch {
       setError('Failed to delete collection')
@@ -319,8 +318,7 @@ export default function TestPlanList() {
     if (!newName.trim()) return
     setCreating(true)
     try {
-      const { createCollection: createCol } = await import('../../api/client')
-      const col = await createCol({ name: newName.trim(), color: newColor })
+      const col = await createCollection({ name: newName.trim(), color: newColor })
       setCollections(prev => [...prev, col].sort((a, b) => a.name.localeCompare(b.name)))
       setNewName(''); setNewColor('indigo'); setShowCreate(false)
     } catch {

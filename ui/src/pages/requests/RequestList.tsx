@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import Layout from '../../components/Layout'
 import ConfirmDialog from '../../components/ConfirmDialog'
-import { listRequests, deleteRequest, listCollections, updateCollection, moveRequest } from '../../api/client'
+import { listRequests, deleteRequest, listCollections, createCollection as apiCreateCollection, deleteCollection as apiDeleteCollection, updateCollection, moveRequest } from '../../api/client'
 import type { HttpRequestSummary, CollectionSummary } from '../../types'
 
 const METHOD_COLORS: Record<string, string> = {
@@ -295,8 +295,7 @@ export default function RequestList() {
   const handleDeleteCollection = async () => {
     if (!deleteCollection) return
     try {
-      const { deleteCollection: delCol } = await import('../../api/client')
-      await delCol(deleteCollection.id)
+      await apiDeleteCollection(deleteCollection.id)
       setCollections(prev => prev.filter(c => c.id !== deleteCollection.id))
     } catch {
       setError('Failed to delete collection')
@@ -309,8 +308,7 @@ export default function RequestList() {
     if (!newName.trim()) return
     setCreating(true)
     try {
-      const { createCollection: createCol } = await import('../../api/client')
-      const col = await createCol({ name: newName.trim(), color: newColor })
+      const col = await apiCreateCollection({ name: newName.trim(), color: newColor })
       setCollections(prev => [...prev, col].sort((a, b) => a.name.localeCompare(b.name)))
       setNewName('')
       setNewColor('indigo')

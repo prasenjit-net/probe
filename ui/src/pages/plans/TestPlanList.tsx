@@ -8,6 +8,7 @@ import Layout from '../../components/Layout'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { listTestPlans, deleteTestPlan, enqueueExecution, listCollections, createCollection, deleteCollection, updateCollection, moveTestPlan } from '../../api/client'
 import type { TestPlanSummary, CollectionSummary } from '../../types'
+import { useEnvironment } from '../../context/EnvironmentContext'
 
 const PALETTE: Record<string, { dot: string; border: string; header: string; badge: string }> = {
   indigo:  { dot: 'bg-indigo-500',  border: 'border-l-indigo-500',  header: 'bg-indigo-50 dark:bg-indigo-900/10',  badge: 'bg-indigo-100 dark:bg-indigo-800/30 text-indigo-700 dark:text-indigo-300' },
@@ -261,6 +262,7 @@ function CollectionGroup({
 
 export default function TestPlanList() {
   const navigate = useNavigate()
+  const { activeEnvId } = useEnvironment()
   const [plans, setPlans]             = useState<TestPlanSummary[]>([])
   const [collections, setCollections] = useState<CollectionSummary[]>([])
   const [loading, setLoading]         = useState(true)
@@ -333,7 +335,7 @@ export default function TestPlanList() {
   const handleExecute = async (plan: TestPlanSummary) => {
     setExecuting(plan.id)
     try {
-      await enqueueExecution({ test_plan_id: plan.id })
+      await enqueueExecution({ test_plan_id: plan.id, environment_id: activeEnvId ?? undefined })
       navigate('/executions')
     } catch {
       setError(`Failed to queue "${plan.name}"`)

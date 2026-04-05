@@ -306,6 +306,7 @@ export interface GeneratedRequest {
 
 export interface GenerationPreview {
   spec_id: string
+  base_url?: string
   requests: GeneratedRequest[]
   plan_name: string
   plan_description: string
@@ -318,6 +319,9 @@ export interface ImportResult {
   test_plan_name: string
   collection_id?: string
   collection_name?: string
+  environment_id?: string
+  environment_name?: string
+  base_url?: string
 }
 
 // ── Collections ───────────────────────────────────────────────────────────────

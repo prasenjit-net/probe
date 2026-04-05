@@ -82,7 +82,7 @@ Required JSON schema:
   "name": "string - short descriptive name",
   "description": "string",
   "method": "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS",
-  "url": "string - full URL, use {{varName}} for path/query params that need variable substitution",
+  "url": "string - MUST start with {{base_url}} instead of the literal host (e.g. {{base_url}}/users/{{userId}}). Use {{varName}} for any path/query params that need variable substitution",
   "headers": [{"key": "string", "value": "string"}],
   "body": "string|null - JSON string for request body, null if no body",
   "body_type": "json|text|form_url_encoded|none",
@@ -224,8 +224,11 @@ pub async fn generate_from_spec(
     // Generate the test plan
     let plan = generate_plan(&client, config, &requests, &custom_suffix).await?;
 
+    let base_url = endpoints.first().map(|e| e.base_url.clone()).unwrap_or_default();
+
     Ok(GenerationPreview {
         spec_id: spec.id.clone(),
+        base_url,
         requests,
         plan_name: plan.name,
         plan_description: plan.description,
@@ -337,15 +340,20 @@ async fn generate_request_for_endpoint(
     let raw = call_openai(client, config, REQUEST_SYSTEM_PROMPT, &user_content).await?;
 
     // Parse and validate — retry once on failure
-    match parse_generated_request(&raw) {
-        Ok(r) => Ok(r),
+    let mut req = match parse_generated_request(&raw) {
+        Ok(r) => r,
         Err(e) => {
             tracing::warn!("First parse failed ({e}), retrying…");
             let retry_raw =
                 call_openai(client, config, REQUEST_SYSTEM_PROMPT, &user_content).await?;
-            parse_generated_request(&retry_raw).context("Failed to parse AI response after retry")
+            parse_generated_request(&retry_raw).context("Failed to parse AI response after retry")?
         }
+    };
+    // Safety net: if AI used the literal base_url instead of {{base_url}}, fix it.
+    if !ep.base_url.is_empty() {
+        req.url = req.url.replace(&ep.base_url, "{{base_url}}");
     }
+    Ok(req)
 }
 
 fn parse_generated_request(raw: &str) -> Result<GeneratedRequest> {

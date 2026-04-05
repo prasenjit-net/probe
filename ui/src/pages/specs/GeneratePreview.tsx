@@ -8,6 +8,7 @@ import {
 import Layout from '../../components/Layout'
 import { generateTests, importGeneration } from '../../api/client'
 import type { GenerationPreview, GeneratedRequest, PlanStepPreview, MappingSourcePreview } from '../../types'
+import { useEnvironment } from '../../context/EnvironmentContext'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'bg-emerald-500', POST: 'bg-blue-500', PUT: 'bg-amber-500',
@@ -198,6 +199,7 @@ function MappingSourceBadge({
 export default function GeneratePreview() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { setActiveEnvId, reload: reloadEnvs } = useEnvironment()
 
   // Modal state
   const [showModal, setShowModal]       = useState(true)
@@ -208,7 +210,7 @@ export default function GeneratePreview() {
   const [loading, setLoading]     = useState(false)
   const [importing, setImporting] = useState(false)
   const [error, setError]         = useState<string | null>(null)
-  const [imported, setImported]   = useState<{ plan_id: string; plan_name: string } | null>(null)
+  const [imported, setImported]   = useState<{ plan_id: string; plan_name: string; env_id?: string; env_name?: string; base_url?: string } | null>(null)
 
   const startGeneration = (prompt: string) => {
     if (!id) return
@@ -231,7 +233,18 @@ export default function GeneratePreview() {
     setError(null)
     try {
       const result = await importGeneration(preview)
-      setImported({ plan_id: result.test_plan_id, plan_name: result.test_plan_name })
+      // Auto-activate the generated environment so tests run against the right server
+      if (result.environment_id) {
+        setActiveEnvId(result.environment_id)
+        await reloadEnvs()
+      }
+      setImported({
+        plan_id: result.test_plan_id,
+        plan_name: result.test_plan_name,
+        env_id: result.environment_id,
+        env_name: result.environment_name,
+        base_url: result.base_url,
+      })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })
         ?.response?.data?.error ?? 'Import failed'
@@ -406,7 +419,24 @@ export default function GeneratePreview() {
                 </p>
               </div>
             </div>
-            <div className="flex gap-3">
+            {imported.env_id && (
+              <div className="rounded-xl border border-emerald-300 dark:border-emerald-600 bg-white dark:bg-gray-900/50 px-4 py-3 flex items-start gap-3">
+                <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                    Environment "{imported.env_name}" created &amp; activated
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded">{"{{base_url}}"}</span>
+                    {imported.base_url ? ` = ${imported.base_url}` : ' — update this in Environments to point to your server'}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    All generated request URLs use <span className="font-mono">{"{{base_url}}"}</span>. Change the value in Environments to run against any server.
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => navigate('/requests')}
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 dark:border-emerald-600 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
@@ -428,6 +458,15 @@ export default function GeneratePreview() {
                 <PlayCircle className="w-4 h-4" />
                 Execute Now
               </button>
+              {imported.env_id && (
+                <button
+                  onClick={() => navigate('/environments')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Globe className="w-4 h-4" />
+                  Edit Environment
+                </button>
+              )}
             </div>
           </div>
         )}

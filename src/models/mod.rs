@@ -528,6 +528,11 @@ pub struct PlanStepPreview {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerationPreview {
     pub spec_id: String,
+    /// The base URL extracted from `servers[0].url`. Stored so that
+    /// `import_generation` can create an Environment with a `base_url` variable,
+    /// and so the UI can display it to the user.
+    #[serde(default)]
+    pub base_url: String,
     pub requests: Vec<GeneratedRequest>,
     pub plan_name: String,
     pub plan_description: String,

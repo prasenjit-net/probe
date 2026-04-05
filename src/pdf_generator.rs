@@ -2,9 +2,9 @@
 
 use crate::models::{ExecutionReport, OverallStatus, StepResult};
 use printpdf::{
-    path::{PaintMode, WindingOrder},
     BuiltinFont, Color, IndirectFontRef, Line, Mm, PdfDocument, PdfDocumentReference,
     PdfLayerIndex, PdfLayerReference, PdfPageIndex, Point, Polygon, Rgb,
+    path::{PaintMode, WindingOrder},
 };
 
 // ── Page geometry ─────────────────────────────────────────────────────────────
@@ -16,35 +16,35 @@ const MB: f32 = 22.0;
 const CW: f32 = MR - ML;
 
 // ── Colours ───────────────────────────────────────────────────────────────────
-const C_HEADER_BG:  (f32,f32,f32) = (0.067, 0.078, 0.200);
-const C_HEADER_TXT: (f32,f32,f32) = (1.0,   1.0,   1.0);
-const C_PASS:       (f32,f32,f32) = (0.059, 0.725, 0.506);
-const C_FAIL:       (f32,f32,f32) = (0.922, 0.259, 0.259);
-const C_RULE:       (f32,f32,f32) = (0.85,  0.85,  0.85);
-const C_LABEL:      (f32,f32,f32) = (0.45,  0.45,  0.45);
-const C_REQ_BG:     (f32,f32,f32) = (0.961, 0.973, 1.0);
-const C_RESP_BG:    (f32,f32,f32) = (0.961, 1.0,   0.976);
-const C_PASS_BG:    (f32,f32,f32) = (0.94,  1.0,   0.96);
-const C_FAIL_BG:    (f32,f32,f32) = (1.0,   0.94,  0.94);
-const BLACK:        (f32,f32,f32) = (0.0,   0.0,   0.0);
+const C_HEADER_BG: (f32, f32, f32) = (0.067, 0.078, 0.200);
+const C_HEADER_TXT: (f32, f32, f32) = (1.0, 1.0, 1.0);
+const C_PASS: (f32, f32, f32) = (0.059, 0.725, 0.506);
+const C_FAIL: (f32, f32, f32) = (0.922, 0.259, 0.259);
+const C_RULE: (f32, f32, f32) = (0.85, 0.85, 0.85);
+const C_LABEL: (f32, f32, f32) = (0.45, 0.45, 0.45);
+const C_REQ_BG: (f32, f32, f32) = (0.961, 0.973, 1.0);
+const C_RESP_BG: (f32, f32, f32) = (0.961, 1.0, 0.976);
+const C_PASS_BG: (f32, f32, f32) = (0.94, 1.0, 0.96);
+const C_FAIL_BG: (f32, f32, f32) = (1.0, 0.94, 0.94);
+const BLACK: (f32, f32, f32) = (0.0, 0.0, 0.0);
 
 // ── Typography (pt) ───────────────────────────────────────────────────────────
-const S_H1:    f32 = 16.0;
-const S_H2:    f32 = 11.0;
-const S_H3:    f32 = 9.5;
-const S_BODY:  f32 = 8.5;
+const S_H1: f32 = 16.0;
+const S_H2: f32 = 11.0;
+const S_H3: f32 = 9.5;
+const S_BODY: f32 = 8.5;
 const S_SMALL: f32 = 7.5;
-const S_MONO:  f32 = 7.5;
+const S_MONO: f32 = 7.5;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct Builder {
-    doc:  PdfDocumentReference,
+    doc: PdfDocumentReference,
     font: IndirectFontRef,
     bold: IndirectFontRef,
     page: PdfPageIndex,
-    lay:  PdfLayerIndex,
-    y:    f32,
+    lay: PdfLayerIndex,
+    y: f32,
 }
 
 impl Builder {
@@ -52,7 +52,14 @@ impl Builder {
         let (doc, page, lay) = PdfDocument::new(title, Mm(PW), Mm(PH), "Content");
         let font = doc.add_builtin_font(BuiltinFont::Helvetica).unwrap();
         let bold = doc.add_builtin_font(BuiltinFont::HelveticaBold).unwrap();
-        Self { doc, font, bold, page, lay, y: PH }
+        Self {
+            doc,
+            font,
+            bold,
+            page,
+            lay,
+            y: PH,
+        }
     }
 
     fn layer(&self) -> PdfLayerReference {
@@ -62,31 +69,38 @@ impl Builder {
     fn new_page(&mut self) {
         let (page, lay) = self.doc.add_page(Mm(PW), Mm(PH), "Content");
         self.page = page;
-        self.lay  = lay;
-        self.y    = PH - ML;
+        self.lay = lay;
+        self.y = PH - ML;
     }
 
     fn ensure(&mut self, needed: f32) {
-        if self.y < MB + needed { self.new_page(); }
+        if self.y < MB + needed {
+            self.new_page();
+        }
     }
 
-    fn set_fill(&self, c: (f32,f32,f32)) {
-        self.layer().set_fill_color(Color::Rgb(Rgb::new(c.0, c.1, c.2, None)));
+    fn set_fill(&self, c: (f32, f32, f32)) {
+        self.layer()
+            .set_fill_color(Color::Rgb(Rgb::new(c.0, c.1, c.2, None)));
     }
-    fn set_stroke(&self, c: (f32,f32,f32)) {
-        self.layer().set_outline_color(Color::Rgb(Rgb::new(c.0, c.1, c.2, None)));
+    fn set_stroke(&self, c: (f32, f32, f32)) {
+        self.layer()
+            .set_outline_color(Color::Rgb(Rgb::new(c.0, c.1, c.2, None)));
     }
 
-    fn text(&self, s: &str, x: f32, sz: f32, bold: bool, col: (f32,f32,f32)) {
+    fn text(&self, s: &str, x: f32, sz: f32, bold: bool, col: (f32, f32, f32)) {
         self.set_fill(col);
         let f = if bold { &self.bold } else { &self.font };
-        self.layer().use_text(Self::sanitise(s), sz, Mm(x), Mm(self.y), f);
+        self.layer()
+            .use_text(Self::sanitise(s), sz, Mm(x), Mm(self.y), f);
         self.set_fill(BLACK);
     }
 
-    fn dn(&mut self, mm: f32) { self.y -= mm; }
+    fn dn(&mut self, mm: f32) {
+        self.y -= mm;
+    }
 
-    fn hline(&self, x1: f32, x2: f32, thickness: f32, col: (f32,f32,f32)) {
+    fn hline(&self, x1: f32, x2: f32, thickness: f32, col: (f32, f32, f32)) {
         self.set_stroke(col);
         self.layer().set_outline_thickness(thickness);
         self.layer().add_line(Line {
@@ -98,14 +112,14 @@ impl Builder {
         });
     }
 
-    fn rect(&self, x: f32, y_top: f32, w: f32, h: f32, col: (f32,f32,f32)) {
+    fn rect(&self, x: f32, y_top: f32, w: f32, h: f32, col: (f32, f32, f32)) {
         self.set_fill(col);
         self.layer().add_polygon(Polygon {
             rings: vec![vec![
-                (Point::new(Mm(x),     Mm(y_top)),     false),
-                (Point::new(Mm(x + w), Mm(y_top)),     false),
+                (Point::new(Mm(x), Mm(y_top)), false),
+                (Point::new(Mm(x + w), Mm(y_top)), false),
                 (Point::new(Mm(x + w), Mm(y_top - h)), false),
-                (Point::new(Mm(x),     Mm(y_top - h)), false),
+                (Point::new(Mm(x), Mm(y_top - h)), false),
             ]],
             mode: PaintMode::Fill,
             winding_order: WindingOrder::NonZero,
@@ -113,33 +127,35 @@ impl Builder {
         self.set_fill(BLACK);
     }
 
-    fn badge(&self, label: &str, x: f32, col: (f32,f32,f32)) -> f32 {
+    fn badge(&self, label: &str, x: f32, col: (f32, f32, f32)) -> f32 {
         let w = label.len() as f32 * 1.55 + 5.0;
         self.rect(x, self.y + 2.5, w, 5.0, col);
         self.set_fill(C_HEADER_TXT);
-        self.layer().use_text(label, 7.5_f32, Mm(x + 2.5), Mm(self.y), &self.bold);
+        self.layer()
+            .use_text(label, 7.5_f32, Mm(x + 2.5), Mm(self.y), &self.bold);
         self.set_fill(BLACK);
         w + 2.0
     }
 
     fn method_badge(&self, method: &str, x: f32) -> f32 {
-        let col: (f32,f32,f32) = match method {
-            "GET"    => (0.059, 0.725, 0.506),
-            "POST"   => (0.227, 0.494, 0.961),
-            "PUT"    => (0.847, 0.573, 0.0),
-            "PATCH"  => (0.918, 0.435, 0.012),
+        let col: (f32, f32, f32) = match method {
+            "GET" => (0.059, 0.725, 0.506),
+            "POST" => (0.227, 0.494, 0.961),
+            "PUT" => (0.847, 0.573, 0.0),
+            "PATCH" => (0.918, 0.435, 0.012),
             "DELETE" => (0.922, 0.259, 0.259),
-            _        => (0.5,   0.5,   0.5),
+            _ => (0.5, 0.5, 0.5),
         };
         let w = method.len() as f32 * 1.8 + 4.0;
         self.rect(x, self.y + 2.5, w, 5.0, col);
         self.set_fill(C_HEADER_TXT);
-        self.layer().use_text(method, 7.5_f32, Mm(x + 2.0), Mm(self.y), &self.bold);
+        self.layer()
+            .use_text(method, 7.5_f32, Mm(x + 2.0), Mm(self.y), &self.bold);
         self.set_fill(BLACK);
         w + 2.0
     }
 
-    fn multiline(&mut self, raw: &str, x: f32, sz: f32, col: (f32,f32,f32), max_lines: usize) {
+    fn multiline(&mut self, raw: &str, x: f32, sz: f32, col: (f32, f32, f32), max_lines: usize) {
         let char_w_mm = sz * 0.042;
         let chars = ((CW - (x - ML)) / char_w_mm) as usize;
         let chars = chars.max(30).min(200);
@@ -149,7 +165,9 @@ impl Builder {
             if line.is_empty() {
                 self.dn(advance * 0.5);
                 count += 1;
-                if count >= max_lines { break; }
+                if count >= max_lines {
+                    break;
+                }
                 continue;
             }
             let mut start = 0;
@@ -174,15 +192,25 @@ impl Builder {
     /// Wrap and render markdown text as plain text (strips markdown syntax).
     fn markdown_multiline(&mut self, raw: &str, x: f32, sz: f32, max_lines: usize) {
         // Strip common markdown: ##/# headings, **, *, `, -, >
-        let cleaned = raw.lines().map(|line| {
-            let l = line.trim_start_matches('#').trim();
-            let l = l.replace("**", "").replace('*', "").replace('`', "").replace("> ", "");
-            // bullet points -> dash
-            let l = if l.starts_with("- ") || l.starts_with("• ") {
-                format!("  • {}", &l[2..])
-            } else { l };
-            l
-        }).collect::<Vec<_>>().join("\n");
+        let cleaned = raw
+            .lines()
+            .map(|line| {
+                let l = line.trim_start_matches('#').trim();
+                let l = l
+                    .replace("**", "")
+                    .replace('*', "")
+                    .replace('`', "")
+                    .replace("> ", "");
+                // bullet points -> dash
+                let l = if l.starts_with("- ") || l.starts_with("• ") {
+                    format!("  • {}", &l[2..])
+                } else {
+                    l
+                };
+                l
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
 
         // Render each line, using bold for lines that were headings
         let char_w_mm = sz * 0.042;
@@ -200,7 +228,11 @@ impl Builder {
             }
             let is_heading = orig_line.trim_start().starts_with('#');
             let effective_sz = if is_heading { sz + 0.5 } else { sz };
-            let col = if is_heading { BLACK } else { (0.25, 0.25, 0.25) };
+            let col = if is_heading {
+                BLACK
+            } else {
+                (0.25, 0.25, 0.25)
+            };
 
             if clean_line.trim().is_empty() {
                 self.dn(advance * 0.4);
@@ -227,11 +259,11 @@ impl Builder {
         }
     }
 
-    fn kv_row(&mut self, key: &str, value: &str, bg: (f32,f32,f32)) {
+    fn kv_row(&mut self, key: &str, value: &str, bg: (f32, f32, f32)) {
         let row_h = 4.8;
         self.ensure(row_h + 1.0);
         self.rect(ML, self.y + 1.5, CW, row_h, bg);
-        self.text(key,   ML + 1.5,        S_SMALL, true,  C_LABEL);
+        self.text(key, ML + 1.5, S_SMALL, true, C_LABEL);
         self.text(value, ML + 1.5 + 30.0, S_SMALL, false, BLACK);
         self.dn(row_h);
     }
@@ -241,19 +273,28 @@ impl Builder {
     }
 
     fn sanitise(s: &str) -> String {
-        s.chars().map(|c| if c.is_ascii() { c } else { '?' }).collect()
+        s.chars()
+            .map(|c| if c.is_ascii() { c } else { '?' })
+            .collect()
     }
 
     fn fmt_duration(ms: u64) -> String {
-        if ms < 1000 { format!("{}ms", ms) }
-        else { format!("{:.2}s", ms as f64 / 1000.0) }
+        if ms < 1000 {
+            format!("{}ms", ms)
+        } else {
+            format!("{:.2}s", ms as f64 / 1000.0)
+        }
     }
 }
 
 fn byte_boundary(s: &str, pos: usize) -> usize {
-    if pos >= s.len() { return s.len(); }
+    if pos >= s.len() {
+        return s.len();
+    }
     let mut p = pos;
-    while p > 0 && !s.is_char_boundary(p) { p -= 1; }
+    while p > 0 && !s.is_char_boundary(p) {
+        p -= 1;
+    }
     p
 }
 
@@ -272,8 +313,16 @@ pub fn generate(report: &ExecutionReport) -> Vec<u8> {
     b.y = PH - 17.0;
     b.text(&report.test_plan_name, ML, S_H2, false, C_HEADER_TXT);
 
-    let status_label = if report.overall_status == OverallStatus::Passed { "PASSED" } else { "FAILED" };
-    let status_col   = if report.overall_status == OverallStatus::Passed { C_PASS } else { C_FAIL };
+    let status_label = if report.overall_status == OverallStatus::Passed {
+        "PASSED"
+    } else {
+        "FAILED"
+    };
+    let status_col = if report.overall_status == OverallStatus::Passed {
+        C_PASS
+    } else {
+        C_FAIL
+    };
     b.y = PH - 14.0;
     b.badge(status_label, MR - 28.0, status_col);
 
@@ -281,25 +330,42 @@ pub fn generate(report: &ExecutionReport) -> Vec<u8> {
 
     // ── Metadata row ─────────────────────────────────────────────────────────
     b.dn(6.0);
-    let started      = report.started_at.format("%Y-%m-%d %H:%M:%S UTC").to_string();
+    let started = report
+        .started_at
+        .format("%Y-%m-%d %H:%M:%S UTC")
+        .to_string();
     let duration_str = Builder::fmt_duration(report.duration_ms);
     b.text(
-        &format!("Started: {}   Duration: {}   Report ID: {}", started, duration_str, &report.id[..8]),
-        ML, S_SMALL, false, C_LABEL,
+        &format!(
+            "Started: {}   Duration: {}   Report ID: {}",
+            started,
+            duration_str,
+            &report.id[..8]
+        ),
+        ML,
+        S_SMALL,
+        false,
+        C_LABEL,
     );
     b.dn(5.5);
 
     // ── Summary stats ────────────────────────────────────────────────────────
     let box_w = 40.0_f32;
     let box_h = 18.0_f32;
-    let gap   = 5.0_f32;
+    let gap = 5.0_f32;
 
     let bx = ML;
     b.rect(bx, b.y, box_w, box_h, (0.96, 0.96, 0.99));
     b.text("TOTAL STEPS", bx + 2.0, S_SMALL, true, C_LABEL);
     let saved_y = b.y;
     b.y -= 5.0;
-    b.text(&report.total_steps.to_string(), bx + 2.0, 16.0, true, (0.2, 0.2, 0.5));
+    b.text(
+        &report.total_steps.to_string(),
+        bx + 2.0,
+        16.0,
+        true,
+        (0.2, 0.2, 0.5),
+    );
     b.y = saved_y;
 
     let bx = ML + box_w + gap;
@@ -307,7 +373,13 @@ pub fn generate(report: &ExecutionReport) -> Vec<u8> {
     b.text("PASSED", bx + 2.0, S_SMALL, true, C_LABEL);
     let saved_y = b.y;
     b.y -= 5.0;
-    b.text(&report.passed_steps.to_string(), bx + 2.0, 16.0, true, C_PASS);
+    b.text(
+        &report.passed_steps.to_string(),
+        bx + 2.0,
+        16.0,
+        true,
+        C_PASS,
+    );
     b.y = saved_y;
 
     let bx = ML + (box_w + gap) * 2.0;
@@ -315,7 +387,13 @@ pub fn generate(report: &ExecutionReport) -> Vec<u8> {
     b.text("FAILED", bx + 2.0, S_SMALL, true, C_LABEL);
     let saved_y = b.y;
     b.y -= 5.0;
-    b.text(&report.failed_steps.to_string(), bx + 2.0, 16.0, true, C_FAIL);
+    b.text(
+        &report.failed_steps.to_string(),
+        bx + 2.0,
+        16.0,
+        true,
+        C_FAIL,
+    );
     b.y = saved_y;
 
     let bx = ML + (box_w + gap) * 3.0;
@@ -323,7 +401,9 @@ pub fn generate(report: &ExecutionReport) -> Vec<u8> {
     b.text("PASS RATE", bx + 2.0, S_SMALL, true, C_LABEL);
     let rate = if report.total_steps > 0 {
         format!("{}%", (report.passed_steps * 100) / report.total_steps)
-    } else { "N/A".into() };
+    } else {
+        "N/A".into()
+    };
     let saved_y = b.y;
     b.y -= 5.0;
     b.text(&rate, bx + 2.0, 16.0, true, (0.2, 0.2, 0.5));
@@ -369,7 +449,13 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
 
     let step_col = if step.passed { C_PASS_BG } else { C_FAIL_BG };
     b.rect(ML, b.y + 2.5, CW, 10.0, step_col);
-    b.text(&format!("{}. {}", num, &step.request_name), ML + 2.0, S_H3, true, BLACK);
+    b.text(
+        &format!("{}. {}", num, &step.request_name),
+        ML + 2.0,
+        S_H3,
+        true,
+        BLACK,
+    );
     let sl = if step.passed { "PASSED" } else { "FAILED" };
     let sc = if step.passed { C_PASS } else { C_FAIL };
     b.badge(sl, MR - 22.0, sc);
@@ -380,7 +466,9 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
     let url_san = Builder::sanitise(&step.request.url);
     let url_trunc = if url_san.len() > 90 {
         format!("{}...", &url_san[..byte_boundary(&url_san, 87)])
-    } else { url_san };
+    } else {
+        url_san
+    };
     b.text(&url_trunc, ML + 2.0 + mw, S_SMALL, false, C_LABEL);
     b.dn(5.5);
 
@@ -389,8 +477,18 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
         b.ensure(8.0);
         b.rect(ML, b.y + 2.5, CW, 7.0, C_FAIL_BG);
         let msg = Builder::sanitise(err);
-        let msg_trunc = if msg.len() > 120 { format!("{}...", &msg[..byte_boundary(&msg, 117)]) } else { msg };
-        b.text(&format!("Error: {}", msg_trunc), ML + 2.0, S_SMALL, true, C_FAIL);
+        let msg_trunc = if msg.len() > 120 {
+            format!("{}...", &msg[..byte_boundary(&msg, 117)])
+        } else {
+            msg
+        };
+        b.text(
+            &format!("Error: {}", msg_trunc),
+            ML + 2.0,
+            S_SMALL,
+            true,
+            C_FAIL,
+        );
         b.dn(7.0);
     }
 
@@ -424,10 +522,20 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
         b.hline(ML, ML + CW * 0.5 - 3.0, 0.3, (0.1, 0.5, 0.3));
         b.dn(3.5);
 
-        let sc = if resp.status_code < 400 { C_PASS } else { C_FAIL };
+        let sc = if resp.status_code < 400 {
+            C_PASS
+        } else {
+            C_FAIL
+        };
         b.ensure(5.0);
         b.text(&resp.status_code.to_string(), ML + 2.0, S_BODY, true, sc);
-        b.text(&format!("  {}", Builder::fmt_duration(resp.duration_ms)), ML + 14.0, S_BODY, false, C_LABEL);
+        b.text(
+            &format!("  {}", Builder::fmt_duration(resp.duration_ms)),
+            ML + 14.0,
+            S_BODY,
+            false,
+            C_LABEL,
+        );
         b.dn(5.0);
 
         for h in resp.headers.iter().take(6) {
@@ -449,8 +557,15 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
         let passed_n = step.assertion_results.iter().filter(|a| a.passed).count();
         b.ensure(8.0);
         b.text(
-            &format!("ASSERTIONS  ({}/{} passed)", passed_n, step.assertion_results.len()),
-            ML, S_SMALL, true, (0.4, 0.2, 0.6),
+            &format!(
+                "ASSERTIONS  ({}/{} passed)",
+                passed_n,
+                step.assertion_results.len()
+            ),
+            ML,
+            S_SMALL,
+            true,
+            (0.4, 0.2, 0.6),
         );
         b.dn(1.5);
         b.hline(ML, ML + CW * 0.5 - 3.0, 0.3, (0.4, 0.2, 0.6));
@@ -461,10 +576,14 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
             let bg = if a.passed { C_PASS_BG } else { C_FAIL_BG };
             b.rect(ML, b.y + 1.5, CW, 5.0, bg);
             let tick = if a.passed { "PASS" } else { "FAIL" };
-            let col  = if a.passed { C_PASS } else { C_FAIL };
+            let col = if a.passed { C_PASS } else { C_FAIL };
             b.text(tick, ML + 1.5, S_BODY, true, col);
             let msg = Builder::sanitise(&a.message);
-            let msg_trunc = if msg.len() > 120 { format!("{}...", &msg[..byte_boundary(&msg, 117)]) } else { msg };
+            let msg_trunc = if msg.len() > 120 {
+                format!("{}...", &msg[..byte_boundary(&msg, 117)])
+            } else {
+                msg
+            };
             b.text(&msg_trunc, ML + 10.0, S_SMALL, false, BLACK);
             b.dn(5.0);
         }
@@ -482,7 +601,11 @@ fn render_step(b: &mut Builder, step: &StepResult, num: usize) {
 
         for v in &step.input_variables {
             let val = Builder::sanitise(v.value.as_deref().unwrap_or("(unresolved)"));
-            b.kv_row(&format!("IN  {}", v.name), &format!("{} ({})", val, v.source_label), C_REQ_BG);
+            b.kv_row(
+                &format!("IN  {}", v.name),
+                &format!("{} ({})", val, v.source_label),
+                C_REQ_BG,
+            );
         }
         for v in &step.output_variables {
             let val = Builder::sanitise(v.value.as_deref().unwrap_or("(not extracted)"));

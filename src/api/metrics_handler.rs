@@ -22,10 +22,7 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new().route("/metrics/summary", get(metrics_summary))
 }
 
-pub async fn metrics_summary(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn metrics_summary(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
         return StatusCode::UNAUTHORIZED.into_response();
     }
@@ -40,9 +37,9 @@ pub async fn metrics_summary(
 
 /// Prometheus text-format scrape endpoint at `/metrics` (no auth – standard for scraping).
 pub async fn prometheus_scrape(State(state): State<AppState>) -> impl IntoResponse {
-    let requests        = state.counters.requests();
-    let login_success   = state.counters.login_success();
-    let login_failure   = state.counters.login_failure();
+    let requests = state.counters.requests();
+    let login_success = state.counters.login_success();
+    let login_failure = state.counters.login_failure();
     let active_sessions = state.active_sessions();
 
     let body = format!(

@@ -12,7 +12,7 @@ use crate::{
         MappingSourcePreview, OverallStatus, PlanStepPreview, SpecRecord, VarMappingPreview,
     },
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -194,17 +194,19 @@ pub async fn generate_from_spec(
         .iter()
         .enumerate()
         .map(|(i, ep)| {
-            let sem    = semaphore.clone();
-            let c      = client.clone();
-            let cfg    = config.clone();
-            let ep     = ep.clone();
+            let sem = semaphore.clone();
+            let c = client.clone();
+            let cfg = config.clone();
+            let ep = ep.clone();
             let suffix = custom_suffix.clone();
             async move {
                 let _permit = sem.acquire().await.expect("semaphore closed");
                 let result = generate_request_for_endpoint(&c, &cfg, &ep, &suffix).await;
                 match &result {
                     Ok(_) => tracing::info!(i, path = %ep.path, method = %ep.method, "Generated"),
-                    Err(e) => tracing::warn!(i, path = %ep.path, method = %ep.method, "Failed: {e}"),
+                    Err(e) => {
+                        tracing::warn!(i, path = %ep.path, method = %ep.method, "Failed: {e}")
+                    }
                 }
                 result
             }
@@ -267,7 +269,9 @@ fn extract_endpoints(spec: &SpecRecord) -> Result<Vec<EndpointSpec>> {
             .unwrap_or_default();
 
         for method in ["get", "post", "put", "patch", "delete", "head", "options"] {
-            let Some(op) = path_item_obj.get(method) else { continue };
+            let Some(op) = path_item_obj.get(method) else {
+                continue;
+            };
 
             let summary = op
                 .get("summary")
@@ -337,9 +341,9 @@ async fn generate_request_for_endpoint(
         Ok(r) => Ok(r),
         Err(e) => {
             tracing::warn!("First parse failed ({e}), retrying…");
-            let retry_raw = call_openai(client, config, REQUEST_SYSTEM_PROMPT, &user_content).await?;
-            parse_generated_request(&retry_raw)
-                .context("Failed to parse AI response after retry")
+            let retry_raw =
+                call_openai(client, config, REQUEST_SYSTEM_PROMPT, &user_content).await?;
+            parse_generated_request(&retry_raw).context("Failed to parse AI response after retry")
         }
     }
 }
@@ -356,7 +360,10 @@ fn parse_generated_request(raw: &str) -> Result<GeneratedRequest> {
     let url = str_field(&v, "url")?;
     let body_type_str = v["body_type"].as_str().unwrap_or("none").to_string();
     let body_type = parse_body_type(&body_type_str);
-    let body = v["body"].as_str().filter(|s| !s.is_empty()).map(|s| s.to_string());
+    let body = v["body"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
 
     let headers: Vec<KeyValue> = v["headers"]
         .as_array()
@@ -467,7 +474,10 @@ fn parse_plan(raw: &str, requests: &[GeneratedRequest]) -> Result<PlanOutput> {
     let cleaned = strip_fences(raw);
     let v: Value = serde_json::from_str(&cleaned).context("plan: not valid JSON")?;
 
-    let name = v["name"].as_str().unwrap_or("Generated Test Plan").to_string();
+    let name = v["name"]
+        .as_str()
+        .unwrap_or("Generated Test Plan")
+        .to_string();
     let description = v["description"].as_str().unwrap_or("").to_string();
 
     // Build a name→index map for validation
@@ -502,7 +512,11 @@ fn parse_plan(raw: &str, requests: &[GeneratedRequest]) -> Result<PlanOutput> {
         })
         .collect();
 
-    Ok(PlanOutput { name, description, steps })
+    Ok(PlanOutput {
+        name,
+        description,
+        steps,
+    })
 }
 
 fn parse_var_mapping_preview(v: &Value) -> Option<VarMappingPreview> {
@@ -535,10 +549,18 @@ async fn call_openai(
         temperature: config.temperature,
         max_tokens: config.max_tokens,
         messages: vec![
-            OaiMessage { role: "system", content: system.to_string() },
-            OaiMessage { role: "user",   content: user.to_string() },
+            OaiMessage {
+                role: "system",
+                content: system.to_string(),
+            },
+            OaiMessage {
+                role: "user",
+                content: user.to_string(),
+            },
         ],
-        response_format: OaiResponseFormat { kind: "json_object" },
+        response_format: OaiResponseFormat {
+            kind: "json_object",
+        },
     };
 
     let resp = client
@@ -587,8 +609,14 @@ async fn call_openai_text(
         temperature: config.temperature,
         max_tokens: config.max_tokens,
         messages: vec![
-            OaiMessage { role: "system", content: system.to_string() },
-            OaiMessage { role: "user",   content: user.to_string() },
+            OaiMessage {
+                role: "system",
+                content: system.to_string(),
+            },
+            OaiMessage {
+                role: "user",
+                content: user.to_string(),
+            },
         ],
     };
 
@@ -682,10 +710,7 @@ pub async fn generate_report_summary(
             }
         }
         for ov in &step.output_variables {
-            user_content.push_str(&format!(
-                "   Output var {}: {:?}\n",
-                ov.name, ov.value
-            ));
+            user_content.push_str(&format!("   Output var {}: {:?}\n", ov.name, ov.value));
         }
     }
 
@@ -723,47 +748,47 @@ fn str_field(v: &Value, key: &str) -> Result<String> {
 
 fn parse_method(s: &str) -> Result<HttpMethod> {
     match s.to_uppercase().as_str() {
-        "GET"     => Ok(HttpMethod::Get),
-        "POST"    => Ok(HttpMethod::Post),
-        "PUT"     => Ok(HttpMethod::Put),
-        "PATCH"   => Ok(HttpMethod::Patch),
-        "DELETE"  => Ok(HttpMethod::Delete),
-        "HEAD"    => Ok(HttpMethod::Head),
+        "GET" => Ok(HttpMethod::Get),
+        "POST" => Ok(HttpMethod::Post),
+        "PUT" => Ok(HttpMethod::Put),
+        "PATCH" => Ok(HttpMethod::Patch),
+        "DELETE" => Ok(HttpMethod::Delete),
+        "HEAD" => Ok(HttpMethod::Head),
         "OPTIONS" => Ok(HttpMethod::Options),
-        other     => bail!("unknown method '{other}'"),
+        other => bail!("unknown method '{other}'"),
     }
 }
 
 fn parse_body_type(s: &str) -> BodyType {
     match s {
-        "json"             => BodyType::Json,
-        "text"             => BodyType::Text,
+        "json" => BodyType::Json,
+        "text" => BodyType::Text,
         "form_url_encoded" => BodyType::FormUrlEncoded,
-        _                  => BodyType::None,
+        _ => BodyType::None,
     }
 }
 
 fn parse_assertion(v: &Value) -> Option<Assertion> {
     let type_str = v["type"].as_str()?;
-    let op_str   = v["operator"].as_str()?;
+    let op_str = v["operator"].as_str()?;
 
     let assertion_type = match type_str {
-        "status_code"    => AssertionType::StatusCode,
-        "body_contains"  => AssertionType::BodyContains,
-        "json_path"      => AssertionType::JsonPath,
-        "header"         => AssertionType::Header,
-        "response_time"  => AssertionType::ResponseTime,
+        "status_code" => AssertionType::StatusCode,
+        "body_contains" => AssertionType::BodyContains,
+        "json_path" => AssertionType::JsonPath,
+        "header" => AssertionType::Header,
+        "response_time" => AssertionType::ResponseTime,
         _ => return None,
     };
 
     let operator = match op_str {
-        "equals"       => AssertionOperator::Equals,
-        "not_equals"   => AssertionOperator::NotEquals,
-        "contains"     => AssertionOperator::Contains,
+        "equals" => AssertionOperator::Equals,
+        "not_equals" => AssertionOperator::NotEquals,
+        "contains" => AssertionOperator::Contains,
         "not_contains" => AssertionOperator::NotContains,
         "greater_than" => AssertionOperator::GreaterThan,
-        "less_than"    => AssertionOperator::LessThan,
-        "regex"        => AssertionOperator::Regex,
+        "less_than" => AssertionOperator::LessThan,
+        "regex" => AssertionOperator::Regex,
         _ => return None,
     };
 

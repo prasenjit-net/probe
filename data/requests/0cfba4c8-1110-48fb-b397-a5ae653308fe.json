@@ -1,0 +1,48 @@
+{
+  "id": "0cfba4c8-1110-48fb-b397-a5ae653308fe",
+  "name": "Get Todo by ID",
+  "description": "Retrieves a single Todo by its `id`. Valid IDs are 1–200.",
+  "method": "GET",
+  "url": "https://jsonplaceholder.typicode.com/todos/{{id}}",
+  "headers": [],
+  "body": null,
+  "body_type": "none",
+  "assertions": [
+    {
+      "id": "af35a481-2b68-4393-abda-a06730064789",
+      "type": "status_code",
+      "operator": "equals",
+      "target": null,
+      "expected_value": "200"
+    },
+    {
+      "id": "c15611e8-910f-456e-9b88-72d5ced7b629",
+      "type": "body_contains",
+      "operator": "contains",
+      "target": null,
+      "expected_value": "delectus aut autem"
+    }
+  ],
+  "input_variables": [
+    {
+      "name": "id",
+      "description": "Unique numeric identifier of the Todo (1–200).",
+      "default_value": "1"
+    }
+  ],
+  "extract_variables": [
+    {
+      "var_name": "todo_id",
+      "path": "$.id",
+      "source": "response_body"
+    },
+    {
+      "var_name": "todo_title",
+      "path": "$.title",
+      "source": "response_body"
+    }
+  ],
+  "collection_id": "987f60d7-aadf-4883-948c-1ed3b9fa97a4",
+  "created_at": "2026-04-05T06:22:40.760320Z",
+  "updated_at": "2026-04-05T06:22:40.760320Z"
+}

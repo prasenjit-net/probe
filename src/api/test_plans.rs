@@ -14,12 +14,13 @@ use axum_extra::extract::CookieJar;
 use chrono::Utc;
 use uuid::Uuid;
 
-pub async fn list_test_plans(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn list_test_plans(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     match storage::list::<TestPlan>(storage::test_plans_dir()).await {
         Ok(mut items) => {
@@ -27,7 +28,11 @@ pub async fn list_test_plans(
             let summaries: Vec<TestPlanSummary> = items.iter().map(|p| p.into()).collect();
             Json(summaries).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -37,7 +42,11 @@ pub async fn create_test_plan(
     Json(body): Json<CreateTestPlan>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     // Validate all referenced request IDs exist
     for step in &body.steps {
@@ -60,7 +69,11 @@ pub async fn create_test_plan(
     };
     match storage::write(storage::test_plans_dir(), &plan.id.clone(), &plan).await {
         Ok(_) => (StatusCode::CREATED, Json(plan)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -70,14 +83,20 @@ pub async fn get_test_plan(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     match storage::read::<TestPlan>(storage::test_plans_dir(), &id).await {
         Ok(plan) => {
             // Enrich steps with request details
             let mut enriched_steps = Vec::new();
             for step in &plan.steps {
-                let req = storage::read::<HttpRequest>(storage::requests_dir(), &step.request_id).await.ok();
+                let req = storage::read::<HttpRequest>(storage::requests_dir(), &step.request_id)
+                    .await
+                    .ok();
                 enriched_steps.push(serde_json::json!({
                     "id": step.id,
                     "request_id": step.request_id,
@@ -99,7 +118,11 @@ pub async fn get_test_plan(
             });
             Json(response).into_response()
         }
-        Err(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"Not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -110,11 +133,21 @@ pub async fn update_test_plan(
     Json(body): Json<CreateTestPlan>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     let existing = match storage::read::<TestPlan>(storage::test_plans_dir(), &id).await {
         Ok(p) => p,
-        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error":"Not found"})),
+            )
+                .into_response();
+        }
     };
     // Validate referenced request IDs
     for step in &body.steps {
@@ -136,7 +169,11 @@ pub async fn update_test_plan(
     };
     match storage::write(storage::test_plans_dir(), &updated.id.clone(), &updated).await {
         Ok(_) => Json(updated).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -146,14 +183,26 @@ pub async fn delete_test_plan(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     if !storage::item_exists(storage::test_plans_dir(), &id) {
-        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"Not found"})),
+        )
+            .into_response();
     }
     match storage::delete(storage::test_plans_dir(), &id).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -164,11 +213,21 @@ pub async fn move_test_plan(
     Json(body): Json<MoveToCollection>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     let existing = match storage::read::<TestPlan>(storage::test_plans_dir(), &id).await {
         Ok(p) => p,
-        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error":"Not found"})),
+            )
+                .into_response();
+        }
     };
     let updated = TestPlan {
         collection_id: body.collection_id,
@@ -177,6 +236,10 @@ pub async fn move_test_plan(
     };
     match storage::write(storage::test_plans_dir(), &updated.id.clone(), &updated).await {
         Ok(_) => Json(TestPlanSummary::from(&updated)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }

@@ -34,7 +34,11 @@ pub async fn list_collections(
     Query(query): Query<ListCollectionsQuery>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     match storage::list::<Collection>(storage::collections_dir()).await {
         Ok(mut items) => {
@@ -45,7 +49,11 @@ pub async fn list_collections(
             let summaries: Vec<CollectionSummary> = items.iter().map(|c| c.into()).collect();
             Json(summaries).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -55,10 +63,18 @@ pub async fn create_collection(
     Json(body): Json<CreateCollection>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     if body.name.trim().is_empty() {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({"error":"Collection name is required"}))).into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"error":"Collection name is required"})),
+        )
+            .into_response();
     }
     let now = Utc::now();
     let col = Collection {
@@ -72,7 +88,11 @@ pub async fn create_collection(
     };
     match storage::write(storage::collections_dir(), &col.id.clone(), &col).await {
         Ok(_) => (StatusCode::CREATED, Json(col)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -82,11 +102,19 @@ pub async fn get_collection(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     match storage::read::<Collection>(storage::collections_dir(), &id).await {
         Ok(col) => Json(col).into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"Not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -97,14 +125,28 @@ pub async fn update_collection(
     Json(body): Json<CreateCollection>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     if body.name.trim().is_empty() {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({"error":"Collection name is required"}))).into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"error":"Collection name is required"})),
+        )
+            .into_response();
     }
     let existing = match storage::read::<Collection>(storage::collections_dir(), &id).await {
         Ok(c) => c,
-        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error":"Not found"})),
+            )
+                .into_response();
+        }
     };
     let updated = Collection {
         id: existing.id,
@@ -117,7 +159,11 @@ pub async fn update_collection(
     };
     match storage::write(storage::collections_dir(), &updated.id.clone(), &updated).await {
         Ok(_) => Json(updated).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -127,18 +173,31 @@ pub async fn delete_collection(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     let col = match storage::read::<Collection>(storage::collections_dir(), &id).await {
         Ok(c) => c,
-        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error":"Not found"})),
+            )
+                .into_response();
+        }
     };
 
     // Cascade-delete all items belonging to this collection.
     match col.kind.as_str() {
         "plan" => {
             if let Ok(plans) = storage::list::<TestPlan>(storage::test_plans_dir()).await {
-                for plan in plans.into_iter().filter(|p| p.collection_id.as_deref() == Some(&id)) {
+                for plan in plans
+                    .into_iter()
+                    .filter(|p| p.collection_id.as_deref() == Some(&id))
+                {
                     let _ = storage::delete(storage::test_plans_dir(), &plan.id).await;
                 }
             }
@@ -146,7 +205,10 @@ pub async fn delete_collection(
         _ => {
             // "request" (and any legacy kind)
             if let Ok(requests) = storage::list::<HttpRequest>(storage::requests_dir()).await {
-                for req in requests.into_iter().filter(|r| r.collection_id.as_deref() == Some(&id)) {
+                for req in requests
+                    .into_iter()
+                    .filter(|r| r.collection_id.as_deref() == Some(&id))
+                {
                     let _ = storage::delete(storage::requests_dir(), &req.id).await;
                 }
             }
@@ -155,7 +217,10 @@ pub async fn delete_collection(
 
     match storage::delete(storage::collections_dir(), &id).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"Not found"})),
+        )
+            .into_response(),
     }
 }
-

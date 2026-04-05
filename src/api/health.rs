@@ -20,10 +20,7 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new().route("/health", get(health_check))
 }
 
-pub async fn health_check(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn health_check(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
         return StatusCode::UNAUTHORIZED.into_response();
     }

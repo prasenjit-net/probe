@@ -45,7 +45,9 @@ pub struct AppConfig {
     pub max_executions: usize,
 }
 
-fn default_max_executions() -> usize { 20 }
+fn default_max_executions() -> usize {
+    20
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct OpenAiConfig {
@@ -59,9 +61,15 @@ pub struct OpenAiConfig {
     pub max_tokens: u32,
 }
 
-fn default_model()       -> String { "gpt-4o-mini".to_string() }
-fn default_temperature() -> f64    { 0.1 }
-fn default_max_tokens()  -> u32    { 2000 }
+fn default_model() -> String {
+    "gpt-4o-mini".to_string()
+}
+fn default_temperature() -> f64 {
+    0.1
+}
+fn default_max_tokens() -> u32 {
+    2000
+}
 
 impl OpenAiConfig {
     pub fn is_configured(&self) -> bool {

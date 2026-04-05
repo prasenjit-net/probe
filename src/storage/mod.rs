@@ -32,8 +32,16 @@ pub fn specs_dir() -> PathBuf {
 }
 
 pub async fn ensure_dirs() -> Result<()> {
-    for dir in [requests_dir(), test_plans_dir(), reports_dir(), specs_dir(), collections_dir()] {
-        fs::create_dir_all(&dir).await.with_context(|| format!("create dir {}", dir.display()))?;
+    for dir in [
+        requests_dir(),
+        test_plans_dir(),
+        reports_dir(),
+        specs_dir(),
+        collections_dir(),
+    ] {
+        fs::create_dir_all(&dir)
+            .await
+            .with_context(|| format!("create dir {}", dir.display()))?;
     }
     Ok(())
 }
@@ -41,12 +49,16 @@ pub async fn ensure_dirs() -> Result<()> {
 pub async fn write<T: Serialize>(dir: PathBuf, id: &str, item: &T) -> Result<()> {
     let path = dir.join(format!("{id}.json"));
     let json = serde_json::to_string_pretty(item)?;
-    fs::write(&path, json).await.with_context(|| format!("write {}", path.display()))
+    fs::write(&path, json)
+        .await
+        .with_context(|| format!("write {}", path.display()))
 }
 
 pub async fn read<T: DeserializeOwned>(dir: PathBuf, id: &str) -> Result<T> {
     let path = dir.join(format!("{id}.json"));
-    let bytes = fs::read(&path).await.with_context(|| format!("read {}", path.display()))?;
+    let bytes = fs::read(&path)
+        .await
+        .with_context(|| format!("read {}", path.display()))?;
     serde_json::from_slice(&bytes).with_context(|| format!("parse {}", path.display()))
 }
 
@@ -78,7 +90,9 @@ pub async fn list<T: DeserializeOwned + Send>(dir: PathBuf) -> Result<Vec<T>> {
 
 pub async fn delete(dir: PathBuf, id: &str) -> Result<()> {
     let path = dir.join(format!("{id}.json"));
-    fs::remove_file(&path).await.with_context(|| format!("delete {}", path.display()))
+    fs::remove_file(&path)
+        .await
+        .with_context(|| format!("delete {}", path.display()))
 }
 
 pub fn item_exists(dir: PathBuf, id: &str) -> bool {
@@ -92,7 +106,9 @@ pub async fn read_vec<T: DeserializeOwned>(path: PathBuf) -> Result<Vec<T>> {
     if !path.exists() {
         return Ok(vec![]);
     }
-    let bytes = fs::read(&path).await.with_context(|| format!("read {}", path.display()))?;
+    let bytes = fs::read(&path)
+        .await
+        .with_context(|| format!("read {}", path.display()))?;
     serde_json::from_slice(&bytes).with_context(|| format!("parse {}", path.display()))
 }
 
@@ -100,8 +116,12 @@ pub async fn read_vec<T: DeserializeOwned>(path: PathBuf) -> Result<Vec<T>> {
 pub async fn write_vec<T: Serialize>(path: PathBuf, items: &[T]) -> Result<()> {
     let tmp = path.with_extension("json.tmp");
     let json = serde_json::to_string_pretty(items)?;
-    fs::write(&tmp, json).await.with_context(|| format!("write tmp {}", tmp.display()))?;
-    fs::rename(&tmp, &path).await.with_context(|| format!("rename to {}", path.display()))
+    fs::write(&tmp, json)
+        .await
+        .with_context(|| format!("write tmp {}", tmp.display()))?;
+    fs::rename(&tmp, &path)
+        .await
+        .with_context(|| format!("rename to {}", path.display()))
 }
 
 /// Migrate legacy per-file executions (data/executions/*.json) into the new
@@ -110,7 +130,7 @@ pub async fn write_vec<T: Serialize>(path: PathBuf, items: &[T]) -> Result<()> {
 pub async fn migrate_executions<T: DeserializeOwned + Serialize + Send>() -> Result<()> {
     let new_file = executions_file();
     if new_file.exists() {
-        return Ok(());  // already migrated
+        return Ok(()); // already migrated
     }
     let legacy_dir = executions_dir();
     if !legacy_dir.exists() {
@@ -120,7 +140,10 @@ pub async fn migrate_executions<T: DeserializeOwned + Serialize + Send>() -> Res
     if items.is_empty() {
         return Ok(());
     }
-    tracing::info!("Migrating {} legacy execution file(s) → executions.json", items.len());
+    tracing::info!(
+        "Migrating {} legacy execution file(s) → executions.json",
+        items.len()
+    );
     write_vec(new_file, &items).await?;
     // Remove old individual files after successful migration
     if let Ok(mut rd) = fs::read_dir(&legacy_dir).await {

@@ -1,7 +1,9 @@
 use crate::{
     auth::check_session,
     executor,
-    models::{CreateHttpRequest, HttpRequest, HttpRequestSummary, MoveToCollection, TestFireRequest},
+    models::{
+        CreateHttpRequest, HttpRequest, HttpRequestSummary, MoveToCollection, TestFireRequest,
+    },
     state::AppState,
     storage,
 };
@@ -16,12 +18,13 @@ use chrono::Utc;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-pub async fn list_requests(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn list_requests(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     match storage::list::<HttpRequest>(storage::requests_dir()).await {
         Ok(mut items) => {
@@ -29,7 +32,11 @@ pub async fn list_requests(
             let summaries: Vec<HttpRequestSummary> = items.iter().map(|r| r.into()).collect();
             Json(summaries).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -39,7 +46,11 @@ pub async fn create_request(
     Json(body): Json<CreateHttpRequest>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     let now = Utc::now();
     let req = HttpRequest {
@@ -60,7 +71,11 @@ pub async fn create_request(
     };
     match storage::write(storage::requests_dir(), &req.id.clone(), &req).await {
         Ok(_) => (StatusCode::CREATED, Json(req)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -70,11 +85,19 @@ pub async fn get_request(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     match storage::read::<HttpRequest>(storage::requests_dir(), &id).await {
         Ok(req) => Json(req).into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"Not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -85,11 +108,21 @@ pub async fn update_request(
     Json(body): Json<CreateHttpRequest>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     let existing = match storage::read::<HttpRequest>(storage::requests_dir(), &id).await {
         Ok(r) => r,
-        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error":"Not found"})),
+            )
+                .into_response();
+        }
     };
     let updated = HttpRequest {
         id: existing.id,
@@ -109,7 +142,11 @@ pub async fn update_request(
     };
     match storage::write(storage::requests_dir(), &updated.id.clone(), &updated).await {
         Ok(_) => Json(updated).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -119,14 +156,26 @@ pub async fn delete_request(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     if !storage::item_exists(storage::requests_dir(), &id) {
-        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"Not found"})),
+        )
+            .into_response();
     }
     match storage::delete(storage::requests_dir(), &id).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -138,7 +187,11 @@ pub async fn test_fire(
     Json(body): Json<TestFireRequest>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     let now = Utc::now();
     let req = body.request;
@@ -177,7 +230,8 @@ pub async fn test_fire(
         }
     }
     let step_id = Uuid::new_v4().to_string();
-    let result = executor::execute_step(&http_client, &step_id, &req_def, &[], &mut variables).await;
+    let result =
+        executor::execute_step(&http_client, &step_id, &req_def, &[], &mut variables).await;
     _ = state;
     Json(result).into_response()
 }
@@ -189,11 +243,21 @@ pub async fn move_request(
     Json(body): Json<MoveToCollection>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     let existing = match storage::read::<HttpRequest>(storage::requests_dir(), &id).await {
         Ok(r) => r,
-        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error":"Not found"})),
+            )
+                .into_response();
+        }
     };
     let updated = HttpRequest {
         collection_id: body.collection_id,
@@ -202,6 +266,10 @@ pub async fn move_request(
     };
     match storage::write(storage::requests_dir(), &updated.id.clone(), &updated).await {
         Ok(_) => Json(HttpRequestSummary::from(&updated)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }

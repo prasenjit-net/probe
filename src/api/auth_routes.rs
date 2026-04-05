@@ -1,5 +1,5 @@
 use crate::{
-    auth::{check_session, SESSION_COOKIE},
+    auth::{SESSION_COOKIE, check_session},
     state::{AppState, Session},
 };
 use axum::{
@@ -86,10 +86,7 @@ pub async fn login_handler(
         .into_response()
 }
 
-pub async fn logout_handler(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn logout_handler(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if let Some(cookie) = jar.get(SESSION_COOKIE) {
         state.sessions.remove(cookie.value());
         tracing::info!("Session removed on logout");
@@ -103,10 +100,7 @@ pub async fn logout_handler(
         .into_response()
 }
 
-pub async fn me_handler(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn me_handler(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     match check_session(&state, &jar) {
         Some(username) => Json(serde_json::json!({
             "authenticated": true,

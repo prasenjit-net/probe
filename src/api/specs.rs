@@ -36,7 +36,11 @@ pub async fn upload_spec(
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
 
     let mut spec_name = String::new();
@@ -58,7 +62,13 @@ pub async fn upload_spec(
 
     let bytes = match file_bytes {
         Some(b) => b,
-        None => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"No file uploaded"}))).into_response(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error":"No file uploaded"})),
+            )
+                .into_response();
+        }
     };
 
     if spec_name.trim().is_empty() {
@@ -74,7 +84,13 @@ pub async fn upload_spec(
 
     let text = match String::from_utf8(bytes) {
         Ok(s) => s,
-        Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":"File is not valid UTF-8"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error":"File is not valid UTF-8"})),
+            )
+                .into_response();
+        }
     };
 
     // Parse JSON or YAML → normalize to serde_json::Value
@@ -82,20 +98,40 @@ pub async fn upload_spec(
         match serde_yaml::from_str::<serde_yaml::Value>(&text) {
             Ok(yv) => match serde_json::to_string(&yv).and_then(|s| serde_json::from_str(&s)) {
                 Ok(jv) => jv,
-                Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": format!("YAML→JSON conversion failed: {e}")}))).into_response(),
+                Err(e) => return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": format!("YAML→JSON conversion failed: {e}")})),
+                )
+                    .into_response(),
             },
-            Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": format!("Invalid YAML: {e}")}))).into_response(),
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": format!("Invalid YAML: {e}")})),
+                )
+                    .into_response();
+            }
         }
     } else {
         match serde_json::from_str::<Value>(&text) {
             Ok(v) => v,
-            Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": format!("Invalid JSON: {e}")}))).into_response(),
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": format!("Invalid JSON: {e}")})),
+                )
+                    .into_response();
+            }
         }
     };
 
     // Validate OpenAPI 3.x
     if let Err(e) = validate_openapi(&content) {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({"error": e}))).into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"error": e})),
+        )
+            .into_response();
     }
 
     let endpoint_count = count_endpoints(&content);
@@ -110,18 +146,23 @@ pub async fn upload_spec(
 
     match storage::write(storage::specs_dir(), &record.id, &record).await {
         Ok(_) => (StatusCode::CREATED, Json(SpecSummary::from(&record))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
 // ── List specs ────────────────────────────────────────────────────────────────
 
-pub async fn list_specs(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn list_specs(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     match storage::list::<SpecRecord>(storage::specs_dir()).await {
         Ok(mut items) => {
@@ -129,7 +170,11 @@ pub async fn list_specs(
             let summaries: Vec<SpecSummary> = items.iter().map(SpecSummary::from).collect();
             Json(summaries).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -141,11 +186,19 @@ pub async fn get_spec(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     match storage::read::<SpecRecord>(storage::specs_dir(), &id).await {
         Ok(record) => Json(record).into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"Not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -157,14 +210,26 @@ pub async fn delete_spec(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
     if !storage::item_exists(storage::specs_dir(), &id) {
-        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error":"Not found"})),
+        )
+            .into_response();
     }
     match storage::delete(storage::specs_dir(), &id).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -177,12 +242,22 @@ pub async fn generate_tests(
     body: Option<Json<serde_json::Value>>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
 
     let record = match storage::read::<SpecRecord>(storage::specs_dir(), &id).await {
         Ok(r) => r,
-        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Spec not found"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error":"Spec not found"})),
+            )
+                .into_response();
+        }
     };
 
     let config = &state.config.openai;
@@ -209,7 +284,11 @@ pub async fn generate_tests(
 
     match ai_generator::generate_from_spec(&record, config, custom_prompt.as_deref()).await {
         Ok(preview) => (StatusCode::OK, Json(preview)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -221,16 +300,20 @@ pub async fn import_generation(
     Json(preview): Json<GenerationPreview>,
 ) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error":"Unauthorized"})),
+        )
+            .into_response();
     }
 
     let now = Utc::now();
 
     // 0. Create two separate collections — one for requests, one for the plan
-    let req_collection_id  = Uuid::new_v4().to_string();
+    let req_collection_id = Uuid::new_v4().to_string();
     let plan_collection_id = Uuid::new_v4().to_string();
-    let collection_name    = preview.plan_name.clone();
-    let description        = format!("AI-generated from OpenAPI spec ({})", preview.spec_id);
+    let collection_name = preview.plan_name.clone();
+    let description = format!("AI-generated from OpenAPI spec ({})", preview.spec_id);
 
     let req_collection = Collection {
         id: req_collection_id.clone(),
@@ -250,11 +333,18 @@ pub async fn import_generation(
         created_at: now,
         updated_at: now,
     };
-    for (cid, col) in [(&req_collection_id, &req_collection), (&plan_collection_id, &plan_collection)] {
+    for (cid, col) in [
+        (&req_collection_id, &req_collection),
+        (&plan_collection_id, &plan_collection),
+    ] {
         if let Err(e) = storage::write(storage::collections_dir(), cid, col).await {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-                "error": format!("Failed to create collection: {e}")
-            }))).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error": format!("Failed to create collection: {e}")
+                })),
+            )
+                .into_response();
         }
     }
 
@@ -280,16 +370,22 @@ pub async fn import_generation(
             updated_at: now,
         };
         if let Err(e) = storage::write(storage::requests_dir(), &id, &req).await {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-                "error": format!("Failed to save request '{}': {}", gen_req.name, e)
-            }))).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error": format!("Failed to save request '{}': {}", gen_req.name, e)
+                })),
+            )
+                .into_response();
         }
         saved_requests.push(req);
     }
 
     // 2. Build test plan steps, resolving step_index → step UUID
     // First create step IDs for all steps upfront so we can resolve forward (though we forbid forward refs)
-    let step_ids: Vec<String> = (0..preview.plan_steps.len()).map(|_| Uuid::new_v4().to_string()).collect();
+    let step_ids: Vec<String> = (0..preview.plan_steps.len())
+        .map(|_| Uuid::new_v4().to_string())
+        .collect();
 
     // Build name → saved request map
     let req_by_name: std::collections::HashMap<_, _> = saved_requests
@@ -310,24 +406,28 @@ pub async fn import_generation(
             .iter()
             .filter_map(|vm| {
                 let source = match &vm.source {
-                    MappingSourcePreview::Constant { value } => {
-                        MappingSource::Constant { value: value.clone() }
-                    }
-                    MappingSourcePreview::StepOutput { step_index, var_name } => {
+                    MappingSourcePreview::Constant { value } => MappingSource::Constant {
+                        value: value.clone(),
+                    },
+                    MappingSourcePreview::StepOutput {
+                        step_index,
+                        var_name,
+                    } => {
                         // Validate: step_index must reference a previous step
                         if *step_index >= step_idx {
                             tracing::warn!(
                                 "Ignoring forward reference in step {} → step_index {}",
-                                step_idx, step_index
+                                step_idx,
+                                step_index
                             );
                             return None;
                         }
                         let ref_step_id = step_ids[*step_index].clone();
                         let ref_step_name = preview.plan_steps[*step_index].step_name.clone();
                         MappingSource::StepOutput {
-                            step_id:   ref_step_id,
+                            step_id: ref_step_id,
                             step_name: ref_step_name,
-                            var_name:  var_name.clone(),
+                            var_name: var_name.clone(),
                         }
                     }
                 };
@@ -361,19 +461,27 @@ pub async fn import_generation(
     };
 
     if let Err(e) = storage::write(storage::test_plans_dir(), &plan_id, &plan).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-            "error": format!("Failed to save test plan: {e}")
-        }))).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": format!("Failed to save test plan: {e}")
+            })),
+        )
+            .into_response();
     }
 
-    (StatusCode::CREATED, Json(serde_json::json!({
-        "requests_created": saved_requests.len(),
-        "test_plan_id": plan_id,
-        "test_plan_name": plan.name,
-        "req_collection_id": req_collection_id,
-        "plan_collection_id": plan_collection_id,
-        "collection_name": collection_name,
-    }))).into_response()
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "requests_created": saved_requests.len(),
+            "test_plan_id": plan_id,
+            "test_plan_name": plan.name,
+            "req_collection_id": req_collection_id,
+            "plan_collection_id": plan_collection_id,
+            "collection_name": collection_name,
+        })),
+    )
+        .into_response()
 }
 
 // ── Validation helpers ────────────────────────────────────────────────────────

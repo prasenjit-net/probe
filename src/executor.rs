@@ -66,7 +66,8 @@ async fn run_execution(mut exec: Execution, state: &AppState) {
     exec.started_at = Some(Utc::now());
     update_execution_in_file(&exec, state).await;
 
-    let plan = match storage::read::<TestPlan>(storage::test_plans_dir(), &exec.test_plan_id).await {
+    let plan = match storage::read::<TestPlan>(storage::test_plans_dir(), &exec.test_plan_id).await
+    {
         Ok(p) => p,
         Err(e) => {
             tracing::error!("Test plan not found: {e}");
@@ -86,31 +87,39 @@ async fn run_execution(mut exec: Execution, state: &AppState) {
     let mut any_failed = false;
 
     for step in plan.steps.iter().filter(|s| s.enabled) {
-        let req_def = match storage::read::<HttpRequest>(storage::requests_dir(), &step.request_id).await {
-            Ok(r) => r,
-            Err(e) => {
-                step_results.push(StepResult {
-                    step_id: step.id.clone(),
-                    request_name: step.name.clone(),
-                    request: RequestSnapshot {
-                        method: "UNKNOWN".into(),
-                        url: "".into(),
-                        headers: vec![],
-                        body: None,
-                    },
-                    response: None,
-                    assertion_results: vec![],
-                    passed: false,
-                    error: Some(format!("Request definition not found: {e}")),
-                    input_variables: vec![],
-                    output_variables: vec![],
-                });
-                any_failed = true;
-                continue;
-            }
-        };
+        let req_def =
+            match storage::read::<HttpRequest>(storage::requests_dir(), &step.request_id).await {
+                Ok(r) => r,
+                Err(e) => {
+                    step_results.push(StepResult {
+                        step_id: step.id.clone(),
+                        request_name: step.name.clone(),
+                        request: RequestSnapshot {
+                            method: "UNKNOWN".into(),
+                            url: "".into(),
+                            headers: vec![],
+                            body: None,
+                        },
+                        response: None,
+                        assertion_results: vec![],
+                        passed: false,
+                        error: Some(format!("Request definition not found: {e}")),
+                        input_variables: vec![],
+                        output_variables: vec![],
+                    });
+                    any_failed = true;
+                    continue;
+                }
+            };
 
-        let step_result = execute_step(&client, &step.id, &req_def, &step.variable_mappings, &mut variables).await;
+        let step_result = execute_step(
+            &client,
+            &step.id,
+            &req_def,
+            &step.variable_mappings,
+            &mut variables,
+        )
+        .await;
         if !step_result.passed {
             any_failed = true;
         }
@@ -128,7 +137,11 @@ async fn run_execution(mut exec: Execution, state: &AppState) {
         execution_id: exec.id.clone(),
         test_plan_id: exec.test_plan_id.clone(),
         test_plan_name: exec.test_plan_name.clone(),
-        overall_status: if any_failed { OverallStatus::Failed } else { OverallStatus::Passed },
+        overall_status: if any_failed {
+            OverallStatus::Failed
+        } else {
+            OverallStatus::Passed
+        },
         started_at,
         completed_at,
         duration_ms,
@@ -146,7 +159,9 @@ async fn run_execution(mut exec: Execution, state: &AppState) {
     }
 
     // Generate AI summary and re-save if configured
-    if let Some(summary) = ai_generator::generate_report_summary(&report, &state.config.openai).await {
+    if let Some(summary) =
+        ai_generator::generate_report_summary(&report, &state.config.openai).await
+    {
         report.ai_summary = Some(summary);
         if let Err(e) = storage::write(storage::reports_dir(), &report.id, &report).await {
             tracing::error!("Failed to save report with AI summary: {e}");
@@ -154,7 +169,11 @@ async fn run_execution(mut exec: Execution, state: &AppState) {
     }
 
     exec.report_id = Some(report.id);
-    exec.status = if any_failed { ExecutionStatus::Failed } else { ExecutionStatus::Completed };
+    exec.status = if any_failed {
+        ExecutionStatus::Failed
+    } else {
+        ExecutionStatus::Completed
+    };
     exec.completed_at = Some(Utc::now());
     update_execution_in_file(&exec, state).await;
 
@@ -228,7 +247,11 @@ pub async fn execute_step(
                     source_label: "Constant".to_string(),
                 });
             }
-            MappingSource::StepOutput { step_name, var_name, .. } => {
+            MappingSource::StepOutput {
+                step_name,
+                var_name,
+                ..
+            } => {
                 let resolved = variables.get(var_name).cloned();
                 // Write the resolved value into the context under the TARGET name
                 // so {{mapping.var_name}} substitution works in URL/headers/body.
@@ -249,13 +272,19 @@ pub async fn execute_step(
         let already_mapped = input_variables.iter().any(|r| r.name == iv.name);
         if !already_mapped {
             if let Some(default) = &iv.default_value {
-                variables.entry(iv.name.clone()).or_insert_with(|| default.clone());
+                variables
+                    .entry(iv.name.clone())
+                    .or_insert_with(|| default.clone());
             }
             let resolved = variables.get(&iv.name).cloned();
             input_variables.push(ResolvedVariable {
                 name: iv.name.clone(),
                 value: resolved,
-                source_label: if variables.contains_key(&iv.name) { "Default".to_string() } else { "Unresolved".to_string() },
+                source_label: if variables.contains_key(&iv.name) {
+                    "Default".to_string()
+                } else {
+                    "Unresolved".to_string()
+                },
             });
         }
     }
@@ -275,7 +304,10 @@ pub async fn execute_step(
 
     for kv in &req_def.headers {
         let v = substitute_vars(&kv.value, variables);
-        headers_snapshot.push(KeyValue { key: kv.key.clone(), value: v.clone() });
+        headers_snapshot.push(KeyValue {
+            key: kv.key.clone(),
+            value: v.clone(),
+        });
         if let Ok(name) = reqwest::header::HeaderName::from_bytes(kv.key.as_bytes()) {
             if let Ok(val) = reqwest::header::HeaderValue::from_str(&v) {
                 req_builder = req_builder.header(name, val);
@@ -283,7 +315,10 @@ pub async fn execute_step(
         }
     }
 
-    let body_str = req_def.body.as_deref().map(|b| substitute_vars(b, variables));
+    let body_str = req_def
+        .body
+        .as_deref()
+        .map(|b| substitute_vars(b, variables));
     if let Some(ref b) = body_str {
         req_builder = req_builder.body(b.clone());
     }
@@ -343,14 +378,19 @@ pub async fn execute_step(
             let body_value: Option<Value> = serde_json::from_str(&body).ok();
             let mut output_variables: Vec<ResolvedVariable> = Vec::new();
             for ev in &req_def.extract_variables {
-                let extracted = extract_variable(ev, status_code, &body, &body_value, &resp_headers);
+                let extracted =
+                    extract_variable(ev, status_code, &body, &body_value, &resp_headers);
                 if let Some(ref val) = extracted {
                     variables.insert(ev.var_name.clone(), val.clone());
                 }
                 output_variables.push(ResolvedVariable {
                     name: ev.var_name.clone(),
                     value: extracted,
-                    source_label: format!("{} ({})", ev.path, format!("{:?}", ev.source).to_lowercase()),
+                    source_label: format!(
+                        "{} ({})",
+                        ev.path,
+                        format!("{:?}", ev.source).to_lowercase()
+                    ),
                 });
             }
 
@@ -389,7 +429,12 @@ fn evaluate_assertion(
     let (actual, passed, message) = match &assertion.assertion_type {
         AssertionType::StatusCode => {
             let actual = status_code.to_string();
-            let (p, m) = compare_values(&assertion.operator, &actual, &assertion.expected_value, false);
+            let (p, m) = compare_values(
+                &assertion.operator,
+                &actual,
+                &assertion.expected_value,
+                false,
+            );
             (actual, p, m)
         }
         AssertionType::BodyContains => {
@@ -399,7 +444,12 @@ fn evaluate_assertion(
         AssertionType::JsonPath => {
             let target = assertion.target.as_deref().unwrap_or("$");
             let actual = extract_json_path(body, target);
-            let (p, m) = compare_values(&assertion.operator, &actual, &assertion.expected_value, false);
+            let (p, m) = compare_values(
+                &assertion.operator,
+                &actual,
+                &assertion.expected_value,
+                false,
+            );
             (actual, p, m)
         }
         AssertionType::Header => {
@@ -409,12 +459,22 @@ fn evaluate_assertion(
                 .find(|h| h.key.to_lowercase() == target)
                 .map(|h| h.value.clone())
                 .unwrap_or_default();
-            let (p, m) = compare_values(&assertion.operator, &header_val, &assertion.expected_value, false);
+            let (p, m) = compare_values(
+                &assertion.operator,
+                &header_val,
+                &assertion.expected_value,
+                false,
+            );
             (header_val, p, m)
         }
         AssertionType::ResponseTime => {
             let actual = duration_ms.to_string();
-            let (p, m) = compare_values(&assertion.operator, &actual, &assertion.expected_value, false);
+            let (p, m) = compare_values(
+                &assertion.operator,
+                &actual,
+                &assertion.expected_value,
+                false,
+            );
             (actual, p, m)
         }
     };
@@ -431,7 +491,12 @@ fn evaluate_assertion(
     }
 }
 
-fn compare_values(op: &AssertionOperator, actual: &str, expected: &str, is_body: bool) -> (bool, String) {
+fn compare_values(
+    op: &AssertionOperator,
+    actual: &str,
+    expected: &str,
+    is_body: bool,
+) -> (bool, String) {
     match op {
         AssertionOperator::Equals => {
             let p = actual == expected;
@@ -443,35 +508,46 @@ fn compare_values(op: &AssertionOperator, actual: &str, expected: &str, is_body:
         }
         AssertionOperator::Contains => {
             let p = actual.contains(expected);
-            let snippet = if is_body { format!("body") } else { format!("{actual:?}") };
+            let snippet = if is_body {
+                format!("body")
+            } else {
+                format!("{actual:?}")
+            };
             (p, format!("Expected {snippet} to contain {expected:?}"))
         }
         AssertionOperator::NotContains => {
             let p = !actual.contains(expected);
-            let snippet = if is_body { format!("body") } else { format!("{actual:?}") };
+            let snippet = if is_body {
+                format!("body")
+            } else {
+                format!("{actual:?}")
+            };
             (p, format!("Expected {snippet} to not contain {expected:?}"))
         }
-        AssertionOperator::GreaterThan => {
-            match (actual.parse::<f64>(), expected.parse::<f64>()) {
-                (Ok(a), Ok(e)) => (a > e, format!("Expected {a} > {e}")),
-                _ => (false, format!("Cannot compare non-numeric values: {actual:?} > {expected:?}")),
+        AssertionOperator::GreaterThan => match (actual.parse::<f64>(), expected.parse::<f64>()) {
+            (Ok(a), Ok(e)) => (a > e, format!("Expected {a} > {e}")),
+            _ => (
+                false,
+                format!("Cannot compare non-numeric values: {actual:?} > {expected:?}"),
+            ),
+        },
+        AssertionOperator::LessThan => match (actual.parse::<f64>(), expected.parse::<f64>()) {
+            (Ok(a), Ok(e)) => (a < e, format!("Expected {a} < {e}")),
+            _ => (
+                false,
+                format!("Cannot compare non-numeric values: {actual:?} < {expected:?}"),
+            ),
+        },
+        AssertionOperator::Regex => match Regex::new(expected) {
+            Ok(re) => {
+                let p = re.is_match(actual);
+                (
+                    p,
+                    format!("Expected {actual:?} to match regex {expected:?}"),
+                )
             }
-        }
-        AssertionOperator::LessThan => {
-            match (actual.parse::<f64>(), expected.parse::<f64>()) {
-                (Ok(a), Ok(e)) => (a < e, format!("Expected {a} < {e}")),
-                _ => (false, format!("Cannot compare non-numeric values: {actual:?} < {expected:?}")),
-            }
-        }
-        AssertionOperator::Regex => {
-            match Regex::new(expected) {
-                Ok(re) => {
-                    let p = re.is_match(actual);
-                    (p, format!("Expected {actual:?} to match regex {expected:?}"))
-                }
-                Err(e) => (false, format!("Invalid regex {expected:?}: {e}")),
-            }
-        }
+            Err(e) => (false, format!("Invalid regex {expected:?}: {e}")),
+        },
     }
 }
 

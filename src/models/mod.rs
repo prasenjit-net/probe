@@ -145,7 +145,11 @@ pub enum MappingSource {
     /// Use a literal constant string value.
     Constant { value: String },
     /// Use the output variable extracted by a previous step.
-    StepOutput { step_id: String, step_name: String, var_name: String },
+    StepOutput {
+        step_id: String,
+        step_name: String,
+        var_name: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -469,9 +473,14 @@ impl From<&SpecRecord> for SpecSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MappingSourcePreview {
-    Constant { value: String },
+    Constant {
+        value: String,
+    },
     /// References a previous step by its 0-based position in the steps array.
-    StepOutput { step_index: usize, var_name: String },
+    StepOutput {
+        step_index: usize,
+        var_name: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -412,7 +412,7 @@ export default function RequestDesigner() {
       assertions: assertions.filter(a => a.expected_value.trim()),
       input_variables: inputVars.filter(v => v.name.trim()),
       extract_variables: extractVars.filter(v => v.var_name.trim()),
-      collection_id: collectionId ?? undefined,
+      collection_id: collectionId,
     }
     try {
       if (isEdit && id) await updateRequest(id, payload)

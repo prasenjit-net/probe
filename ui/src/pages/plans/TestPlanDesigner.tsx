@@ -599,8 +599,8 @@ export default function TestPlanDesigner() {
     if (!name.trim()) { setError('Plan name is required'); return }
     setSaving(true); setError('')
     try {
-      if (isEdit && id) await updateTestPlan(id, { name, description, steps, collection_id: collectionId ?? undefined })
-      else await createTestPlan({ name, description, steps, collection_id: collectionId ?? undefined })
+      if (isEdit && id) await updateTestPlan(id, { name, description, steps, collection_id: collectionId })
+      else await createTestPlan({ name, description, steps, collection_id: collectionId })
       navigate('/test-plans')
     } catch {
       setError('Failed to save. Please try again.')

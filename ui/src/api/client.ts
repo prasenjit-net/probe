@@ -26,13 +26,13 @@ export const createRequest = (data: {
   name: string; description: string; method: HttpMethod; url: string;
   headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
   input_variables: InputVariable[]; extract_variables: ExtractVariable[];
-  collection_id?: string;
+  collection_id?: string | null;
 }) => api.post<HttpRequest>('/requests', data).then(r => r.data)
 export const updateRequest = (id: string, data: {
   name: string; description: string; method: HttpMethod; url: string;
   headers: KeyValue[]; body?: string; body_type: BodyType; assertions: Assertion[];
   input_variables: InputVariable[]; extract_variables: ExtractVariable[];
-  collection_id?: string;
+  collection_id?: string | null;
 }) => api.put<HttpRequest>(`/requests/${id}`, data).then(r => r.data)
 export const deleteRequest = (id: string) => api.delete(`/requests/${id}`)
 export const moveRequest = (id: string, collectionId: string | null) =>
@@ -47,9 +47,9 @@ export const testFireRequest = (data: {
 // ── Test Plans ────────────────────────────────────────────────────────────────
 export const listTestPlans = () => api.get<TestPlanSummary[]>('/test-plans').then(r => r.data)
 export const getTestPlan = (id: string) => api.get<TestPlanEnriched>(`/test-plans/${id}`).then(r => r.data)
-export const createTestPlan = (data: { name: string; description: string; steps: TestPlanStep[]; collection_id?: string }) =>
+export const createTestPlan = (data: { name: string; description: string; steps: TestPlanStep[]; collection_id?: string | null }) =>
   api.post('/test-plans', data).then(r => r.data)
-export const updateTestPlan = (id: string, data: { name: string; description: string; steps: TestPlanStep[]; collection_id?: string }) =>
+export const updateTestPlan = (id: string, data: { name: string; description: string; steps: TestPlanStep[]; collection_id?: string | null }) =>
   api.put(`/test-plans/${id}`, data).then(r => r.data)
 export const deleteTestPlan = (id: string) => api.delete(`/test-plans/${id}`)
 export const moveTestPlan = (id: string, collectionId: string | null) =>

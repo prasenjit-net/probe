@@ -2,10 +2,10 @@
   "id": "94f4778f-a5fe-4a06-a1b7-6b0757684ad0",
   "test_plan_id": "d4217053-f526-4643-ad9c-cb7ffd44e20d",
   "test_plan_name": "Todo API Test Plan",
-  "status": "running",
+  "status": "failed",
   "scheduled_at": null,
   "created_at": "2026-04-05T03:09:42.561282Z",
   "started_at": "2026-04-05T03:09:44.900609Z",
-  "completed_at": null,
-  "report_id": null
+  "completed_at": "2026-04-05T03:10:52.266388Z",
+  "report_id": "8597d633-8929-4eb1-9cf7-a7968b6e9ff5"
 }

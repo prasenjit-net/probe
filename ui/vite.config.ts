@@ -20,9 +20,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!id.includes('node_modules/')) return
-
-          // Markdown renderer + its large dependency tree — lazy-loaded only by ReportDetail
+          // ── Vendor: markdown renderer (large, only used in ReportDetail) ──
           if (
             id.includes('node_modules/react-markdown') ||
             id.includes('node_modules/remark') ||
@@ -41,7 +39,7 @@ export default defineConfig({
             return 'vendor-markdown'
           }
 
-          // Icons + small utilities — consolidate dozens of tiny lucide icon files
+          // ── Vendor: icons + small utilities ─────────────────────────────
           if (
             id.includes('node_modules/lucide-react') ||
             id.includes('node_modules/uuid') ||
@@ -50,9 +48,25 @@ export default defineConfig({
             return 'vendor-ui'
           }
 
-          // Everything else (react, react-dom, react-router, scheduler, etc.)
-          // kept in one chunk to avoid circular inter-package dependencies
-          return 'vendor'
+          // ── Vendor: everything else (react, react-dom, router, …) ───────
+          if (id.includes('node_modules/')) {
+            return 'vendor'
+          }
+
+          // ── App: heavy designer/detail pages (large, infrequently visited) ──
+          if (
+            id.includes('/pages/requests/RequestDesigner') ||
+            id.includes('/pages/plans/TestPlanDesigner') ||
+            id.includes('/pages/specs/GeneratePreview') ||
+            id.includes('/pages/reports/ReportDetail')
+          ) {
+            return 'pages-heavy'
+          }
+
+          // ── App: all remaining pages + shared components ─────────────────
+          if (id.includes('/src/')) {
+            return 'pages-light'
+          }
         },
       },
     },

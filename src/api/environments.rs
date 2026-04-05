@@ -1,9 +1,4 @@
-use crate::{
-    auth::check_session,
-    models::Environment,
-    state::AppState,
-    storage,
-};
+use crate::{auth::check_session, models::Environment, state::AppState, storage};
 use axum::{
     Json,
     extract::{Path, State},
@@ -33,10 +28,7 @@ pub struct UpdateEnvironment {
     pub variables: std::collections::HashMap<String, String>,
 }
 
-pub async fn list_environments(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn list_environments(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
         return unauthorized();
     }
@@ -133,13 +125,25 @@ pub async fn delete_environment(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn unauthorized() -> axum::response::Response {
-    (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response()
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({"error":"Unauthorized"})),
+    )
+        .into_response()
 }
 
 fn not_found() -> axum::response::Response {
-    (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response()
+    (
+        StatusCode::NOT_FOUND,
+        Json(serde_json::json!({"error":"Not found"})),
+    )
+        .into_response()
 }
 
 fn internal_error(msg: String) -> axum::response::Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": msg}))).into_response()
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({"error": msg})),
+    )
+        .into_response()
 }

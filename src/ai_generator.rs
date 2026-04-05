@@ -224,7 +224,10 @@ pub async fn generate_from_spec(
     // Generate the test plan
     let plan = generate_plan(&client, config, &requests, &custom_suffix).await?;
 
-    let base_url = endpoints.first().map(|e| e.base_url.clone()).unwrap_or_default();
+    let base_url = endpoints
+        .first()
+        .map(|e| e.base_url.clone())
+        .unwrap_or_default();
 
     Ok(GenerationPreview {
         spec_id: spec.id.clone(),
@@ -346,7 +349,8 @@ async fn generate_request_for_endpoint(
             tracing::warn!("First parse failed ({e}), retrying…");
             let retry_raw =
                 call_openai(client, config, REQUEST_SYSTEM_PROMPT, &user_content).await?;
-            parse_generated_request(&retry_raw).context("Failed to parse AI response after retry")?
+            parse_generated_request(&retry_raw)
+                .context("Failed to parse AI response after retry")?
         }
     };
     // Safety net: if AI used the literal base_url instead of {{base_url}}, fix it.

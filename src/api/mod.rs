@@ -115,7 +115,10 @@ pub fn create_router(state: AppState) -> Router {
             "/api/archive/{name}/restore",
             post(archive::restore_archive),
         )
-        .route("/api/archive/{name}", axum::routing::delete(archive::delete_archive))
+        .route(
+            "/api/archive/{name}",
+            axum::routing::delete(archive::delete_archive),
+        )
         // ── Environments ──────────────────────────────────────────────────────
         .route(
             "/api/environments",

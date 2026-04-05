@@ -24,10 +24,7 @@ pub struct ConfirmQuery {
     pub confirm: Option<bool>,
 }
 
-pub async fn list_archives(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn list_archives(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
         return unauthorized();
     }
@@ -64,10 +61,7 @@ pub async fn list_archives(
     Json(archives).into_response()
 }
 
-pub async fn create_archive(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+pub async fn create_archive(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
         return unauthorized();
     }

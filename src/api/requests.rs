@@ -232,7 +232,9 @@ pub async fn test_fire(
         if let Some(default) = &iv.default_value
             && !default.is_empty()
         {
-            variables.entry(iv.name.clone()).or_insert_with(|| default.clone());
+            variables
+                .entry(iv.name.clone())
+                .or_insert_with(|| default.clone());
         }
     }
 

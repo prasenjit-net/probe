@@ -61,6 +61,7 @@ export const getExecution = (id: string) => api.get<Execution>(`/executions/${id
 export const enqueueExecution = (data: { test_plan_id: string; scheduled_at?: string }) =>
   api.post<Execution>('/executions', data).then(r => r.data)
 export const cancelExecution = (id: string) => api.delete(`/executions/${id}`)
+export const clearExecutions = () => api.delete<{ cleared: number }>('/executions').then(r => r.data)
 
 // ── Reports ───────────────────────────────────────────────────────────────────
 export const listReports = () => api.get<ReportSummary[]>('/reports').then(r => r.data)

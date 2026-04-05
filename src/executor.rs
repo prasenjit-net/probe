@@ -14,6 +14,7 @@ use crate::{
         OverallStatus, RequestSnapshot, ResolvedVariable, ResponseSnapshot, StepResult, TestPlan,
         VariableMapping, VariableSource,
     },
+    state::AppState,
     storage,
 };
 use chrono::Utc;
@@ -27,11 +28,11 @@ use tokio::time::{Duration, sleep};
 use uuid::Uuid;
 
 /// Spawn the background executor loop. Call once from `main`.
-pub fn spawn(config: Config) {
+pub fn spawn(state: AppState) {
     tokio::spawn(async move {
         tracing::info!("Execution engine started");
         loop {
-            if let Err(e) = poll_and_run(&config).await {
+            if let Err(e) = poll_and_run(&state).await {
                 tracing::error!("Executor error: {e:#}");
             }
             sleep(Duration::from_secs(5)).await;
@@ -39,39 +40,38 @@ pub fn spawn(config: Config) {
     });
 }
 
-async fn poll_and_run(config: &Config) -> anyhow::Result<()> {
-    let executions = storage::list::<Execution>(storage::executions_dir()).await?;
+async fn poll_and_run(state: &AppState) -> anyhow::Result<()> {
+    let _lock = state.execution_lock.lock().await;
+    let executions = storage::read_vec::<Execution>(storage::executions_file())
+        .await
+        .unwrap_or_default();
     let now = Utc::now();
 
-    for exec in executions {
-        if exec.status != ExecutionStatus::Queued {
-            continue;
-        }
-        let due = exec.scheduled_at.map(|t| t <= now).unwrap_or(true);
-        if !due {
-            continue;
-        }
+    let next = executions.into_iter().find(|exec| {
+        exec.status == ExecutionStatus::Queued
+            && exec.scheduled_at.map(|t| t <= now).unwrap_or(true)
+    });
+
+    if let Some(exec) = next {
         tracing::info!(id = %exec.id, plan = %exec.test_plan_name, "Starting execution");
-        run_execution(exec, config).await;
-        break;
+        // Release lock before running (execution can take a long time)
+        drop(_lock);
+        run_execution(exec, state).await;
     }
     Ok(())
 }
 
-async fn run_execution(mut exec: Execution, config: &Config) {
+async fn run_execution(mut exec: Execution, state: &AppState) {
     // Mark as running
     exec.status = ExecutionStatus::Running;
     exec.started_at = Some(Utc::now());
-    if let Err(e) = storage::write(storage::executions_dir(), &exec.id, &exec).await {
-        tracing::error!("Failed to save running status: {e}");
-        return;
-    }
+    update_execution_in_file(&exec, state).await;
 
     let plan = match storage::read::<TestPlan>(storage::test_plans_dir(), &exec.test_plan_id).await {
         Ok(p) => p,
         Err(e) => {
             tracing::error!("Test plan not found: {e}");
-            finalize_execution(&mut exec, ExecutionStatus::Failed).await;
+            finalize_execution(&mut exec, ExecutionStatus::Failed, state).await;
             return;
         }
     };
@@ -147,7 +147,7 @@ async fn run_execution(mut exec: Execution, config: &Config) {
     }
 
     // Generate AI summary and re-save if configured
-    if let Some(summary) = ai_generator::generate_report_summary(&report, &config.openai).await {
+    if let Some(summary) = ai_generator::generate_report_summary(&report, &state.config.openai).await {
         report.ai_summary = Some(summary);
         if let Err(e) = storage::write(storage::reports_dir(), &report.id, &report).await {
             tracing::error!("Failed to save report with AI summary: {e}");
@@ -157,9 +157,7 @@ async fn run_execution(mut exec: Execution, config: &Config) {
     exec.report_id = Some(report.id);
     exec.status = if any_failed { ExecutionStatus::Failed } else { ExecutionStatus::Completed };
     exec.completed_at = Some(Utc::now());
-    if let Err(e) = storage::write(storage::executions_dir(), &exec.id, &exec).await {
-        tracing::error!("Failed to update execution: {e}");
-    }
+    update_execution_in_file(&exec, state).await;
 
     tracing::info!(
         id = %exec.id,
@@ -170,10 +168,44 @@ async fn run_execution(mut exec: Execution, config: &Config) {
     );
 }
 
-async fn finalize_execution(exec: &mut Execution, status: ExecutionStatus) {
+/// Update a single execution record inside the shared file (lock not held — caller manages).
+async fn update_execution_in_file(exec: &Execution, state: &AppState) {
+    let _lock = state.execution_lock.lock().await;
+    let mut items = storage::read_vec::<Execution>(storage::executions_file())
+        .await
+        .unwrap_or_default();
+    if let Some(pos) = items.iter().position(|e| e.id == exec.id) {
+        items[pos] = exec.clone();
+    } else {
+        items.push(exec.clone());
+    }
+    let max = state.config.app.max_executions;
+    // Trim: keep active entries + most-recent finished up to max
+    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    if items.len() > max {
+        let mut active: Vec<Execution> = Vec::new();
+        let mut finished: Vec<Execution> = Vec::new();
+        for e in items {
+            match e.status {
+                ExecutionStatus::Queued | ExecutionStatus::Running => active.push(e),
+                _ => finished.push(e),
+            }
+        }
+        let slots = max.saturating_sub(active.len());
+        let mut kept: Vec<Execution> = active;
+        kept.extend(finished.into_iter().take(slots));
+        kept.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        items = kept;
+    }
+    if let Err(e) = storage::write_vec(storage::executions_file(), &items).await {
+        tracing::error!("Failed to persist execution update: {e}");
+    }
+}
+
+async fn finalize_execution(exec: &mut Execution, status: ExecutionStatus, state: &AppState) {
     exec.status = status;
     exec.completed_at = Some(Utc::now());
-    let _ = storage::write(storage::executions_dir(), &exec.id, exec).await;
+    update_execution_in_file(exec, state).await;
 }
 
 pub async fn execute_step(

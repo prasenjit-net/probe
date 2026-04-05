@@ -14,6 +14,47 @@ use axum_extra::extract::CookieJar;
 use chrono::Utc;
 use uuid::Uuid;
 
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+/// Read all executions (must hold execution_lock).
+async fn read_all(state: &AppState) -> Vec<Execution> {
+    storage::read_vec::<Execution>(storage::executions_file())
+        .await
+        .unwrap_or_default()
+}
+
+/// Persist executions, trimming old completed entries if over the limit.
+/// Active entries (Queued / Running) are never removed.
+async fn save_all(state: &AppState, mut items: Vec<Execution>) {
+    let max = state.config.app.max_executions;
+    // Sort newest-first so we keep the most recent entries.
+    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+    if items.len() > max {
+        let mut keep: Vec<Execution> = Vec::with_capacity(max);
+        let mut active: Vec<Execution> = Vec::new();
+        let mut finished: Vec<Execution> = Vec::new();
+        for e in items {
+            match e.status {
+                ExecutionStatus::Queued | ExecutionStatus::Running => active.push(e),
+                _ => finished.push(e),
+            }
+        }
+        // finished is already newest-first; take up to (max - active.len())
+        let slots = max.saturating_sub(active.len());
+        keep.extend(active);
+        keep.extend(finished.into_iter().take(slots));
+        keep.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        items = keep;
+    }
+
+    if let Err(e) = storage::write_vec(storage::executions_file(), &items).await {
+        tracing::error!("Failed to persist executions: {e}");
+    }
+}
+
+// ── handlers ──────────────────────────────────────────────────────────────────
+
 pub async fn list_executions(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -21,13 +62,10 @@ pub async fn list_executions(
     if check_session(&state, &jar).is_none() {
         return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
     }
-    match storage::list::<Execution>(storage::executions_dir()).await {
-        Ok(mut items) => {
-            items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-            Json(items).into_response()
-        }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
-    }
+    let _lock = state.execution_lock.lock().await;
+    let mut items = read_all(&state).await;
+    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    Json(items).into_response()
 }
 
 pub async fn enqueue_execution(
@@ -38,7 +76,6 @@ pub async fn enqueue_execution(
     if check_session(&state, &jar).is_none() {
         return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
     }
-    // Load test plan to get its name
     let plan = match storage::read::<TestPlan>(storage::test_plans_dir(), &body.test_plan_id).await {
         Ok(p) => p,
         Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Test plan not found"}))).into_response(),
@@ -54,10 +91,11 @@ pub async fn enqueue_execution(
         completed_at: None,
         report_id: None,
     };
-    match storage::write(storage::executions_dir(), &execution.id.clone(), &execution).await {
-        Ok(_) => (StatusCode::CREATED, Json(execution)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
-    }
+    let _lock = state.execution_lock.lock().await;
+    let mut items = read_all(&state).await;
+    items.push(execution.clone());
+    save_all(&state, items).await;
+    (StatusCode::CREATED, Json(execution)).into_response()
 }
 
 pub async fn get_execution(
@@ -68,9 +106,11 @@ pub async fn get_execution(
     if check_session(&state, &jar).is_none() {
         return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
     }
-    match storage::read::<Execution>(storage::executions_dir(), &id).await {
-        Ok(ex) => Json(ex).into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+    let _lock = state.execution_lock.lock().await;
+    let items = read_all(&state).await;
+    match items.into_iter().find(|e| e.id == id) {
+        Some(e) => Json(e).into_response(),
+        None => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
     }
 }
 
@@ -82,17 +122,41 @@ pub async fn cancel_execution(
     if check_session(&state, &jar).is_none() {
         return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
     }
-    let mut execution = match storage::read::<Execution>(storage::executions_dir(), &id).await {
-        Ok(e) => e,
-        Err(_) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response(),
+    let _lock = state.execution_lock.lock().await;
+    let mut items = read_all(&state).await;
+    let pos = items.iter().position(|e| e.id == id);
+    let Some(idx) = pos else {
+        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"Not found"}))).into_response();
     };
-    if execution.status != ExecutionStatus::Queued {
+    if items[idx].status != ExecutionStatus::Queued {
         return (StatusCode::CONFLICT, Json(serde_json::json!({"error":"Only queued executions can be cancelled"}))).into_response();
     }
-    execution.status = ExecutionStatus::Cancelled;
-    execution.completed_at = Some(Utc::now());
-    match storage::write(storage::executions_dir(), &execution.id.clone(), &execution).await {
-        Ok(_) => Json(execution).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+    items[idx].status = ExecutionStatus::Cancelled;
+    items[idx].completed_at = Some(Utc::now());
+    let updated = items[idx].clone();
+    save_all(&state, items).await;
+    Json(updated).into_response()
+}
+
+pub async fn clear_executions(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> impl IntoResponse {
+    if check_session(&state, &jar).is_none() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"Unauthorized"}))).into_response();
     }
+    let _lock = state.execution_lock.lock().await;
+    // Keep only active entries (queued/running) — don't abort running work.
+    let items = read_all(&state).await;
+    let active: Vec<Execution> = items.into_iter()
+        .filter(|e| matches!(e.status, ExecutionStatus::Queued | ExecutionStatus::Running))
+        .collect();
+    let removed = {
+        let all = storage::read_vec::<Execution>(storage::executions_file()).await.unwrap_or_default();
+        all.len().saturating_sub(active.len())
+    };
+    if let Err(e) = storage::write_vec(storage::executions_file(), &active).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response();
+    }
+    Json(serde_json::json!({ "cleared": removed })).into_response()
 }

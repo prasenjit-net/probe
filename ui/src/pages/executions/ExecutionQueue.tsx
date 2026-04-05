@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import { RefreshCw, PlayCircle, X, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, Ban, FileText } from 'lucide-react'
+import { RefreshCw, PlayCircle, X, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, Ban, FileText, Trash2 } from 'lucide-react'
 import Layout from '../../components/Layout'
-import { listExecutions, listTestPlans, enqueueExecution, cancelExecution } from '../../api/client'
+import ConfirmDialog from '../../components/ConfirmDialog'
+import { listExecutions, listTestPlans, enqueueExecution, cancelExecution, clearExecutions } from '../../api/client'
 import type { Execution, ExecutionStatus, TestPlanSummary } from '../../types'
 
 const STATUS_CONFIG: Record<ExecutionStatus, { label: string; dot: string; text: string; bg: string; icon: typeof Clock }> = {
@@ -33,6 +34,8 @@ export default function ExecutionQueue() {
   const [plans, setPlans]           = useState<TestPlanSummary[]>([])
   const [loading, setLoading]       = useState(true)
   const [showModal, setShowModal]   = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [clearing, setClearing]     = useState(false)
   const [selectedPlan, setSelectedPlan] = useState('')
   const [scheduleAt, setScheduleAt] = useState('')
   const [scheduling, setScheduling] = useState(false)
@@ -90,6 +93,19 @@ export default function ExecutionQueue() {
     }
   }
 
+  const handleClear = async () => {
+    setClearing(true)
+    try {
+      await clearExecutions()
+      setExecutions(prev => prev.filter(e => e.status === 'queued' || e.status === 'running'))
+    } catch {
+      setError('Failed to clear execution history')
+    } finally {
+      setClearing(false)
+      setShowClearConfirm(false)
+    }
+  }
+
   const fmtTime = (iso: string) => new Date(iso).toLocaleString(undefined, {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   })
@@ -116,6 +132,14 @@ export default function ExecutionQueue() {
             >
               <RefreshCw className="w-3.5 h-3.5" strokeWidth={2} />
               Refresh
+            </button>
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              disabled={executions.filter(e => e.status !== 'queued' && e.status !== 'running').length === 0 || clearing}
+              className="inline-flex items-center gap-2 rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shadow-card disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+              Clear History
             </button>
             <button
               onClick={() => setShowModal(true)}
@@ -269,6 +293,16 @@ export default function ExecutionQueue() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showClearConfirm}
+        title="Clear Execution History"
+        message="This will permanently delete all completed, failed, and cancelled executions. Active (queued/running) executions will not be affected. This action cannot be undone."
+        confirmLabel="Clear History"
+        danger
+        onConfirm={handleClear}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </Layout>
   )
 }

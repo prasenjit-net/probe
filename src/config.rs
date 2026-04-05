@@ -38,7 +38,14 @@ pub struct LoggingConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppConfig {
     pub name: String,
+    /// Maximum number of execution records to retain in the queue.
+    /// When exceeded, the oldest *completed/cancelled/failed* entries are pruned.
+    /// Active (queued/running) entries are never removed automatically.
+    #[serde(default = "default_max_executions")]
+    pub max_executions: usize,
 }
+
+fn default_max_executions() -> usize { 20 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct OpenAiConfig {

@@ -39,7 +39,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/collections",                get(collections::list_collections).post(collections::create_collection))
         .route("/api/collections/{id}",           get(collections::get_collection).put(collections::update_collection).delete(collections::delete_collection))
         // ── Executions (queue) ────────────────────────────────────────────────
-        .route("/api/executions",      get(executions::list_executions).post(executions::enqueue_execution))
+        .route("/api/executions",      get(executions::list_executions).post(executions::enqueue_execution).delete(executions::clear_executions))
         .route("/api/executions/{id}",  get(executions::get_execution).delete(executions::cancel_execution))
         // ── Reports ───────────────────────────────────────────────────────────
         .route("/api/reports",          get(reports::list_reports))

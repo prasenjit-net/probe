@@ -18,6 +18,10 @@ level = "info"
 
 [app]
 name = "Probe"
+# Maximum number of execution entries to keep in history (default: 20).
+# When this limit is exceeded, the oldest completed/failed/cancelled entries are removed.
+# Active (queued/running) entries are never removed.
+max_executions = 20
 
 [openai]
 # Set your OpenAI API key here to enable AI-powered test generation.

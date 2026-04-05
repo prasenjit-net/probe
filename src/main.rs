@@ -28,11 +28,16 @@ async fn main() -> anyhow::Result<()> {
     // ── Ensure data directories exist ─────────────────────────────────────
     storage::ensure_dirs().await?;
 
+    // ── Migrate legacy per-file executions → single-file format ──────────
+    if let Err(e) = storage::migrate_executions::<models::Execution>().await {
+        tracing::warn!("Execution migration warning: {e}");
+    }
+
     // ── Build shared application state ────────────────────────────────────
     let state = state::AppState::new(cfg.clone());
 
     // ── Spawn background execution engine ─────────────────────────────────
-    executor::spawn(cfg.clone());
+    executor::spawn(state.clone());
 
     // ── Build Axum router ─────────────────────────────────────────────────
     let app = api::create_router(state);

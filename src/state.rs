@@ -5,6 +5,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
+use tokio::sync::Mutex;
 
 /// Simple in-process counters exposed on the JSON dashboard endpoint.
 #[derive(Debug, Default)]
@@ -51,6 +52,8 @@ pub struct AppState {
     pub password_hash: Arc<String>,
     pub start_time: DateTime<Utc>,
     pub counters: Arc<AppCounters>,
+    /// Serializes all reads + writes to the executions.json single file.
+    pub execution_lock: Arc<Mutex<()>>,
 }
 
 impl AppState {
@@ -63,6 +66,7 @@ impl AppState {
             password_hash: Arc::new(hash),
             start_time: Utc::now(),
             counters: Arc::new(AppCounters::default()),
+            execution_lock: Arc::new(Mutex::new(())),
         }
     }
 

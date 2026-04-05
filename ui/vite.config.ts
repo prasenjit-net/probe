@@ -20,16 +20,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // React core — loaded on every page
-          if (
-            id.includes('node_modules/react/') ||
-            id.includes('node_modules/react-dom/') ||
-            id.includes('node_modules/react-router-dom/') ||
-            id.includes('node_modules/scheduler/')
-          ) {
-            return 'vendor-react'
-          }
-          // Markdown renderer — only used in ReportDetail
+          if (!id.includes('node_modules/')) return
+
+          // Markdown renderer + its large dependency tree — lazy-loaded only by ReportDetail
           if (
             id.includes('node_modules/react-markdown') ||
             id.includes('node_modules/remark') ||
@@ -47,7 +40,8 @@ export default defineConfig({
           ) {
             return 'vendor-markdown'
           }
-          // Icons + small UI utilities — consolidate dozens of tiny icon files
+
+          // Icons + small utilities — consolidate dozens of tiny lucide icon files
           if (
             id.includes('node_modules/lucide-react') ||
             id.includes('node_modules/uuid') ||
@@ -55,10 +49,10 @@ export default defineConfig({
           ) {
             return 'vendor-ui'
           }
-          // Everything else in node_modules
-          if (id.includes('node_modules/')) {
-            return 'vendor-misc'
-          }
+
+          // Everything else (react, react-dom, react-router, scheduler, etc.)
+          // kept in one chunk to avoid circular inter-package dependencies
+          return 'vendor'
         },
       },
     },

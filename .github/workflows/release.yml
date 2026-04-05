@@ -75,7 +75,7 @@ jobs:
             target: aarch64-apple-darwin
             artifact: probe-macos-aarch64
 
-          - os: macos-13              # Intel Mac
+          - os: macos-12              # Intel Mac
             target: x86_64-apple-darwin
             artifact: probe-macos-x86_64
 

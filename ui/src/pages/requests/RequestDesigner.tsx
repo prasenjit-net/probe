@@ -625,7 +625,7 @@ export default function RequestDesigner() {
                         {bodyType === 'json' ? 'application/json' : bodyType === 'form_url_encoded' ? 'application/x-www-form-urlencoded' : 'text/plain'}
                       </span>
                       {bodyType === 'json' && body && (
-                        <button onClick={() => { try { setBody(JSON.stringify(JSON.parse(body), null, 2)) } catch {} }} className="text-xs text-indigo-500 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">Format</button>
+                        <button onClick={() => { try { setBody(JSON.stringify(JSON.parse(body), null, 2)) } catch { /* invalid JSON — ignore */ } }} className="text-xs text-indigo-500 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">Format</button>
                       )}
                     </div>
                     <textarea value={body} onChange={e => setBody(e.target.value)} rows={14} spellCheck={false}

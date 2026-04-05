@@ -209,8 +209,12 @@ jobs:
 
       - name: Create tag ${{ env.TAG }}
         run: |
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
+          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists on remote — skipping creation"
+          else
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
 
       # ── Generate changelog from commits since last tag ──────────────────────
       - name: Generate changelog

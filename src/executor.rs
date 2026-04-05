@@ -199,6 +199,11 @@ pub async fn execute_step(
             }
             MappingSource::StepOutput { step_name, var_name, .. } => {
                 let resolved = variables.get(var_name).cloned();
+                // Write the resolved value into the context under the TARGET name
+                // so {{mapping.var_name}} substitution works in URL/headers/body.
+                if let Some(ref val) = resolved {
+                    variables.insert(mapping.var_name.clone(), val.clone());
+                }
                 input_variables.push(ResolvedVariable {
                     name: mapping.var_name.clone(),
                     value: resolved,

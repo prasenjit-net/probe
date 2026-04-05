@@ -97,3 +97,25 @@ export const createCollection = (data: { name: string; description?: string; col
 export const updateCollection = (id: string, data: { name: string; description?: string; color?: string }) =>
   api.put<Collection>(`/collections/${id}`, data).then(r => r.data)
 export const deleteCollection = (id: string) => api.delete(`/collections/${id}`)
+
+// ── Archive ───────────────────────────────────────────────────────────────────
+export interface ArchiveMeta {
+  name: string
+  size_bytes: number
+  created_at: string
+}
+
+export const listArchives = () =>
+  api.get<ArchiveMeta[]>('/archive').then(r => r.data)
+
+export const createArchive = () =>
+  api.post<ArchiveMeta>('/archive').then(r => r.data)
+
+export const downloadArchiveUrl = (name: string) =>
+  `/api/archive/${encodeURIComponent(name)}/download`
+
+export const restoreArchive = (name: string) =>
+  api.post(`/archive/${encodeURIComponent(name)}/restore?confirm=true`).then(r => r.data)
+
+export const deleteArchive = (name: string) =>
+  api.delete(`/archive/${encodeURIComponent(name)}`)

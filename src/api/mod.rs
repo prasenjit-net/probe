@@ -1,3 +1,4 @@
+pub mod archive;
 pub mod auth_routes;
 pub mod collections;
 pub mod executions;
@@ -100,6 +101,20 @@ pub fn create_router(state: AppState) -> Router {
             get(specs::get_spec).delete(specs::delete_spec),
         )
         .route("/api/specs/{id}/generate", post(specs::generate_tests))
+        // ── Archive ───────────────────────────────────────────────────────────
+        .route(
+            "/api/archive",
+            get(archive::list_archives).post(archive::create_archive),
+        )
+        .route(
+            "/api/archive/{name}/download",
+            get(archive::download_archive),
+        )
+        .route(
+            "/api/archive/{name}/restore",
+            post(archive::restore_archive),
+        )
+        .route("/api/archive/{name}", axum::routing::delete(archive::delete_archive))
         // ── SPA fallback ──────────────────────────────────────────────────────
         .fallback(embedded::serve_static)
         // ── Global layers ─────────────────────────────────────────────────────

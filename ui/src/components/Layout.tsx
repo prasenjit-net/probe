@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   LayoutDashboard, Link2, ClipboardList, PlayCircle,
-  BarChart2, LogOut, Sun, Moon, Menu, X, Zap, FileJson,
+  BarChart2, LogOut, Sun, Moon, Menu, X, Zap, FileJson, Archive,
 } from 'lucide-react'
 
 interface LayoutProps { children: ReactNode }
@@ -16,6 +16,7 @@ const navItems = [
   { to: '/executions',  label: 'Executions',      icon: PlayCircle },
   { to: '/reports',     label: 'Reports',         icon: BarChart2 },
   { to: '/specs',       label: 'API Specs',       icon: FileJson },
+  { to: '/archive',     label: 'Archives',        icon: Archive },
 ]
 
 function UserAvatar({ name }: { name: string }) {

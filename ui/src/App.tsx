@@ -17,6 +17,7 @@ const ReportList       = lazy(() => import('./pages/reports/ReportList'))
 const ReportDetail     = lazy(() => import('./pages/reports/ReportDetail'))
 const SpecList         = lazy(() => import('./pages/specs/SpecList'))
 const GeneratePreview  = lazy(() => import('./pages/specs/GeneratePreview'))
+const ArchivePage      = lazy(() => import('./pages/archive/ArchivePage'))
 
 const SLOW_THRESHOLD_MS = 5_000
 
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="/reports/:id" element={<ProtectedRoute><ReportDetail /></ProtectedRoute>} />
         <Route path="/specs" element={<ProtectedRoute><SpecList /></ProtectedRoute>} />
         <Route path="/specs/:id/generate" element={<ProtectedRoute><GeneratePreview /></ProtectedRoute>} />
+        <Route path="/archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>

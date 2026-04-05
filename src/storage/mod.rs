@@ -30,6 +30,9 @@ pub fn collections_dir() -> PathBuf {
 pub fn specs_dir() -> PathBuf {
     data_dir().join("specs")
 }
+pub fn archives_dir() -> PathBuf {
+    data_dir().join("archives")
+}
 
 pub async fn ensure_dirs() -> Result<()> {
     for dir in [
@@ -38,6 +41,7 @@ pub async fn ensure_dirs() -> Result<()> {
         reports_dir(),
         specs_dir(),
         collections_dir(),
+        archives_dir(),
     ] {
         fs::create_dir_all(&dir)
             .await

@@ -7,7 +7,6 @@
 
 use crate::{
     ai_generator,
-    config::Config,
     models::{
         Assertion, AssertionOperator, AssertionResult, AssertionType, Execution, ExecutionReport,
         ExecutionStatus, ExtractVariable, HttpMethod, HttpRequest, KeyValue, MappingSource,

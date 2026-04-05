@@ -17,7 +17,7 @@ use uuid::Uuid;
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 /// Read all executions (must hold execution_lock).
-async fn read_all(state: &AppState) -> Vec<Execution> {
+async fn read_all(_state: &AppState) -> Vec<Execution> {
     storage::read_vec::<Execution>(storage::executions_file())
         .await
         .unwrap_or_default()

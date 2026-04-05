@@ -90,7 +90,7 @@ Required JSON schema:
     {
       "type": "status_code|body_contains|json_path|header|response_time",
       "operator": "equals|not_equals|contains|not_contains|greater_than|less_than|regex",
-      "target": "string|null - header name or $.jsonpath (null for status_code/body_contains/response_time)",
+      "target": "string|null - header name or JSONPath for json_path assertions (null for status_code/body_contains/response_time)",
       "expected_value": "string"
     }
   ],
@@ -106,10 +106,21 @@ Rules:
 - Always add a status_code assertion for the primary success HTTP status code (e.g. 200, 201)
 - For path parameters like {id} or {userId}: use {{id}} or {{userId}} in the URL and add a matching input_variable
 - For POST/PUT bodies: generate a realistic example body as a JSON string
-- extract_variables: extract ID fields and tokens from the response schema using JSONPath ($.id, $.token etc.)
+- extract_variables: extract ID fields and tokens from the response schema using JSONPath
 - input_variables default_value must be a realistic sample (e.g. "1" for IDs, "john@example.com" for emails)
 - Keep headers minimal - add Content-Type: application/json for POST/PUT/PATCH with JSON body
-- Do NOT include Authorization headers (these will be added by variable mappings)"#;
+- Do NOT include Authorization headers (these will be added by variable mappings)
+
+CRITICAL JSONPath rules (RFC 9535 — strict compliance required):
+- Root is always $ with NO trailing dot before a bracket: use $[0] NOT $.[0]
+- Dot notation for keys: $.id, $.data.name, $.users[0].email
+- Bracket notation: $['id'], $[0], $[0]['name']
+- Recursive descent: $..id, $..items[0].id
+- NEVER write $.[anything] — the dot before [ is INVALID and will cause extraction to fail
+- NEVER write $.items.[0] — correct form is $.items[0]
+- Array index examples: $[0].id  $.data[0].token  $.results[0].uuid
+- Filter example: $.items[?(@.active == true)].id
+- Always validate: after $ or after ] a dot is fine, but NEVER dot-then-bracket"#;
 
 const PLAN_SYSTEM_PROMPT: &str = r#"You are a test plan architect. Given a list of API test requests, create an ordered test execution plan.
 Output ONLY a valid JSON object. No markdown, no explanation.
@@ -384,9 +395,11 @@ fn parse_generated_request(raw: &str) -> Result<GeneratedRequest> {
         .unwrap_or(&vec![])
         .iter()
         .filter_map(|ev| {
+            let raw_path = ev["path"].as_str()?.to_string();
+            let path = fix_jsonpath(&raw_path);
             Some(ExtractVariable {
                 var_name: ev["var_name"].as_str()?.to_string(),
-                path: ev["path"].as_str()?.to_string(),
+                path,
                 source: crate::models::VariableSource::ResponseBody,
             })
         })
@@ -756,9 +769,32 @@ fn parse_assertion(v: &Value) -> Option<Assertion> {
 
     Some(Assertion {
         id: Uuid::new_v4().to_string(),
-        assertion_type,
+        assertion_type: assertion_type.clone(),
         operator,
-        target: v["target"].as_str().map(|s| s.to_string()),
+        target: v["target"].as_str().map(|s| {
+            // Fix RFC 9535 JSONPath for json_path assertions
+            if matches!(assertion_type, AssertionType::JsonPath) {
+                fix_jsonpath(s)
+            } else {
+                s.to_string()
+            }
+        }),
         expected_value: v["expected_value"].as_str().unwrap_or("").to_string(),
     })
+}
+
+/// Fix common RFC 9535 JSONPath violations produced by LLMs.
+///
+/// The most common mistake is `$.[N]` or `$.key.[N]` — a dot immediately
+/// before a bracket selector, which is invalid in RFC 9535.
+/// This function removes those spurious dots so the path will parse correctly.
+fn fix_jsonpath(path: &str) -> String {
+    // Replace any occurrence of ".[" with "[" (dot before bracket is invalid)
+    // e.g.  $.[0].id   ->  $[0].id
+    //       $.items.[0] -> $.items[0]
+    let fixed = path.replace(".[", "[");
+    if fixed != path {
+        tracing::debug!(original = %path, fixed = %fixed, "Fixed invalid JSONPath (removed '.[')");
+    }
+    fixed
 }

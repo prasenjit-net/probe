@@ -2,7 +2,7 @@
   "id": "d4217053-f526-4643-ad9c-cb7ffd44e20d",
   "name": "Todo API Test Plan",
   "description": "A test plan to validate the CRUD operations on the Todo API.",
-  "collection_id": "16bb6bda-cdb1-4abd-b6e4-7d622727b056",
+  "collection_id": null,
   "steps": [
     {
       "id": "9927f582-c4cc-45c9-b0e3-f2b33315d198",
@@ -21,7 +21,7 @@
           "var_name": "userId",
           "source": {
             "kind": "constant",
-            "value": "1"
+            "value": "2"
           }
         },
         {
@@ -138,5 +138,5 @@
     }
   ],
   "created_at": "2026-04-04T17:40:30.055862Z",
-  "updated_at": "2026-04-05T05:42:11.303367Z"
+  "updated_at": "2026-04-05T05:50:08.696677Z"
 }

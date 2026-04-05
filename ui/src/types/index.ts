@@ -143,6 +143,7 @@ export interface TestPlanEnriched {
   id: string
   name: string
   description: string
+  collection_id?: string
   steps: TestPlanStepEnriched[]
   created_at: string
   updated_at: string

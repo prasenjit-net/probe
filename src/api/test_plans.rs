@@ -92,6 +92,7 @@ pub async fn get_test_plan(
                 "id": plan.id,
                 "name": plan.name,
                 "description": plan.description,
+                "collection_id": plan.collection_id,
                 "steps": enriched_steps,
                 "created_at": plan.created_at,
                 "updated_at": plan.updated_at,

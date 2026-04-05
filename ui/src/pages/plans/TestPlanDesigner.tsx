@@ -512,7 +512,7 @@ export default function TestPlanDesigner() {
     getTestPlan(id).then(plan => {
       setName(plan.name)
       setDescription(plan.description)
-      setCollectionId((plan as unknown as { collection_id?: string }).collection_id ?? null)
+      setCollectionId(plan.collection_id ?? null)
       setSteps(plan.steps.map(s => ({
         id: s.id, request_id: s.request_id, name: s.name,
         enabled: s.enabled, extract_variables: s.extract_variables ?? [],

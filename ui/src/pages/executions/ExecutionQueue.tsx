@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { RefreshCw, PlayCircle, X, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, Ban, FileText, Trash2, Globe } from 'lucide-react'
 import Layout from '../../components/Layout'
 import ConfirmDialog from '../../components/ConfirmDialog'
@@ -44,6 +44,7 @@ export default function ExecutionQueue() {
   const navigate = (url: string) => { window.location.href = url }
   const { environments, activeEnvId } = useEnvironment()
   const [selectedEnvId, setSelectedEnvId] = useState<string>('')
+  const pollingRef = useRef(false)
 
   const load = useCallback(async () => {
     try {
@@ -63,7 +64,10 @@ export default function ExecutionQueue() {
     const id = setInterval(() => {
       setExecutions(prev => {
         const hasActive = prev.some(e => e.status === 'running' || e.status === 'queued')
-        if (hasActive) load()
+        if (hasActive && !pollingRef.current) {
+          pollingRef.current = true
+          load().finally(() => { pollingRef.current = false })
+        }
         return prev
       })
     }, 5000)

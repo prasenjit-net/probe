@@ -368,7 +368,19 @@ pub async fn execute_step(
                     value: v.to_str().unwrap_or("").to_string(),
                 })
                 .collect();
-            let body = resp.text().await.unwrap_or_default();
+
+            // Cap response body at 10 MB to prevent OOM on huge responses.
+            const MAX_BODY_BYTES: usize = 10 * 1024 * 1024;
+            let body_bytes = resp.bytes().await.unwrap_or_default();
+            let body = if body_bytes.len() > MAX_BODY_BYTES {
+                format!(
+                    "[Response body truncated: {} bytes received, limit is {} bytes]",
+                    body_bytes.len(),
+                    MAX_BODY_BYTES
+                )
+            } else {
+                String::from_utf8_lossy(&body_bytes).into_owned()
+            };
 
             let response_snapshot = ResponseSnapshot {
                 status_code,
@@ -579,7 +591,7 @@ fn extract_json_path(body: &str, path: &str) -> String {
                 None => String::new(),
             }
         }
-        Err(_) => String::new(),
+        Err(e) => format!("[JSONPath parse error: {e}]"),
     }
 }
 

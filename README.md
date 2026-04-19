@@ -47,7 +47,7 @@ cp config.example.toml config.toml
 make run
 ```
 
-Open `http://127.0.0.1:3000` and log in with the credentials from `config.toml` (default `admin` / `admin`).
+Open `http://127.0.0.1:7654` and log in with the credentials from `config.toml` (default `admin` / `admin`).
 
 ### Option B — manual steps
 
@@ -76,7 +76,7 @@ cd ui && npm run build && cd .. && cargo build --release
 make dev
 ```
 
-This starts both the Vite dev-server (port 5173, proxies `/api` → `:3000`) and the Rust backend via `cargo-watch` in parallel. Edit UI source files and see changes instantly without rebuilding the binary.
+This starts both the Vite dev-server (port 5173, proxies `/api` → `:7654`) and the Rust backend via `cargo-watch` in parallel. Edit UI source files and see changes instantly without rebuilding the binary.
 
 ```bash
 # Alternatively, run each in its own terminal:
@@ -114,7 +114,7 @@ Copy `config.example.toml` to `config.toml` and adjust as needed. The file is re
 ```toml
 [server]
 host = "127.0.0.1"   # bind address
-port = 3000          # bind port
+port = 7654          # bind port
 
 [auth]
 username = "admin"
@@ -140,7 +140,7 @@ max_tokens = 2000
 | Key | Default | Description |
 |-----|---------|-------------|
 | `server.host` | `127.0.0.1` | Bind address |
-| `server.port` | `3000` | Bind port |
+| `server.port` | `7654` | Bind port |
 | `auth.username` | `admin` | Login username |
 | `auth.password` | `admin` | Plain-text password; bcrypt-hashed at startup |
 | `session.ttl_seconds` | `3600` | Session lifetime in seconds |

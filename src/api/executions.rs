@@ -1,6 +1,8 @@
 use crate::{
     auth::check_session,
-    models::{CreateExecution, Execution, ExecutionStatus, TestPlan},
+    models::{
+        CreateExecution, Execution, ExecutionMode, ExecutionStatus, LoadTestConfig, TestPlan,
+    },
     state::AppState,
     storage,
 };
@@ -53,6 +55,16 @@ async fn save_all(state: &AppState, mut items: Vec<Execution>) {
     }
 }
 
+fn validate_load_test_config(cfg: &LoadTestConfig) -> Result<(), &'static str> {
+    if cfg.concurrency == 0 {
+        return Err("Load-test concurrency must be greater than 0");
+    }
+    if cfg.duration_seconds.unwrap_or(0) == 0 && cfg.total_iterations.unwrap_or(0) == 0 {
+        return Err("Load tests require duration_seconds or total_iterations");
+    }
+    Ok(())
+}
+
 // ── handlers ──────────────────────────────────────────────────────────────────
 
 pub async fn list_executions(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
@@ -93,6 +105,34 @@ pub async fn enqueue_execution(
         }
     };
 
+    match body.mode {
+        ExecutionMode::Standard => {
+            if body.load_test_config.is_some() {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error":"load_test_config is only valid for load_test mode"})),
+                )
+                    .into_response();
+            }
+        }
+        ExecutionMode::LoadTest => {
+            let Some(cfg) = body.load_test_config.as_ref() else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error":"load_test_config is required for load_test mode"})),
+                )
+                    .into_response();
+            };
+            if let Err(message) = validate_load_test_config(cfg) {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": message})),
+                )
+                    .into_response();
+            }
+        }
+    }
+
     // Optionally resolve the environment name for display purposes
     let environment_name = if let Some(ref env_id) = body.environment_id {
         storage::read::<crate::models::Environment>(storage::environments_dir(), env_id)
@@ -108,6 +148,7 @@ pub async fn enqueue_execution(
         test_plan_id: plan.id,
         test_plan_name: plan.name,
         status: ExecutionStatus::Queued,
+        mode: body.mode,
         scheduled_at: body.scheduled_at,
         created_at: Utc::now(),
         started_at: None,
@@ -115,6 +156,7 @@ pub async fn enqueue_execution(
         report_id: None,
         environment_id: body.environment_id,
         environment_name,
+        load_test_config: body.load_test_config,
     };
     let _lock = state.execution_lock.lock().await;
     let mut items = read_all(&state).await;
@@ -169,18 +211,24 @@ pub async fn cancel_execution(
         )
             .into_response();
     };
-    if items[idx].status != ExecutionStatus::Queued {
-        return (
+    match items[idx].status {
+        ExecutionStatus::Queued => {
+            items[idx].status = ExecutionStatus::Cancelled;
+            items[idx].completed_at = Some(Utc::now());
+            let updated = items[idx].clone();
+            save_all(&state, items).await;
+            Json(updated).into_response()
+        }
+        ExecutionStatus::Running if items[idx].mode == ExecutionMode::LoadTest => {
+            state.request_cancellation(&id);
+            Json(items[idx].clone()).into_response()
+        }
+        _ => (
             StatusCode::CONFLICT,
-            Json(serde_json::json!({"error":"Only queued executions can be cancelled"})),
+            Json(serde_json::json!({"error":"Only queued executions or running load tests can be cancelled"})),
         )
-            .into_response();
+            .into_response(),
     }
-    items[idx].status = ExecutionStatus::Cancelled;
-    items[idx].completed_at = Some(Utc::now());
-    let updated = items[idx].clone();
-    save_all(&state, items).await;
-    Json(updated).into_response()
 }
 
 pub async fn clear_executions(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {

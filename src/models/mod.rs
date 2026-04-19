@@ -222,12 +222,33 @@ pub enum ExecutionStatus {
     Cancelled,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionMode {
+    #[default]
+    Standard,
+    LoadTest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoadTestConfig {
+    pub concurrency: usize,
+    #[serde(default)]
+    pub duration_seconds: Option<u64>,
+    #[serde(default)]
+    pub total_iterations: Option<u64>,
+    #[serde(default)]
+    pub ramp_up_seconds: Option<u64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {
     pub id: String,
     pub test_plan_id: String,
     pub test_plan_name: String,
     pub status: ExecutionStatus,
+    #[serde(default)]
+    pub mode: ExecutionMode,
     /// None = run immediately; Some = run at or after this time
     pub scheduled_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -239,6 +260,8 @@ pub struct Execution {
     pub environment_id: Option<String>,
     #[serde(default)]
     pub environment_name: Option<String>,
+    #[serde(default)]
+    pub load_test_config: Option<LoadTestConfig>,
 }
 
 // ── Execution Report ───────────────────────────────────────────────────────────
@@ -297,12 +320,61 @@ pub enum OverallStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoadTestStepSummary {
+    pub step_id: String,
+    pub step_name: String,
+    pub total_requests: u64,
+    pub passed_requests: u64,
+    pub failed_requests: u64,
+    pub avg_duration_ms: f64,
+    pub min_duration_ms: u64,
+    pub max_duration_ms: u64,
+    pub p95_duration_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoadTestErrorSummary {
+    pub step_id: String,
+    pub step_name: String,
+    pub error: String,
+    pub count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoadTestIterationSample {
+    pub iteration: u64,
+    pub passed: bool,
+    pub duration_ms: u64,
+    pub step_results: Vec<StepResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoadTestSummary {
+    pub config: LoadTestConfig,
+    pub total_iterations: u64,
+    pub successful_iterations: u64,
+    pub failed_iterations: u64,
+    pub total_requests: u64,
+    pub cancelled: bool,
+    pub avg_iteration_duration_ms: f64,
+    pub p95_iteration_duration_ms: u64,
+    pub throughput_iterations_per_sec: f64,
+    pub throughput_requests_per_sec: f64,
+    pub per_step: Vec<LoadTestStepSummary>,
+    pub error_counts: Vec<LoadTestErrorSummary>,
+    #[serde(default)]
+    pub sampled_iterations: Vec<LoadTestIterationSample>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionReport {
     pub id: String,
     pub execution_id: String,
     pub test_plan_id: String,
     pub test_plan_name: String,
     pub overall_status: OverallStatus,
+    #[serde(default)]
+    pub execution_mode: ExecutionMode,
     pub started_at: DateTime<Utc>,
     pub completed_at: DateTime<Utc>,
     pub duration_ms: u64,
@@ -314,6 +386,8 @@ pub struct ExecutionReport {
     pub collection_id: Option<String>,
     #[serde(default)]
     pub ai_summary: Option<String>,
+    #[serde(default)]
+    pub load_test_summary: Option<LoadTestSummary>,
 }
 
 // ── Request/Response DTOs ──────────────────────────────────────────────────────
@@ -362,9 +436,13 @@ pub struct CreateTestPlan {
 #[derive(Debug, Deserialize)]
 pub struct CreateExecution {
     pub test_plan_id: String,
+    #[serde(default)]
+    pub mode: ExecutionMode,
     pub scheduled_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub environment_id: Option<String>,
+    #[serde(default)]
+    pub load_test_config: Option<LoadTestConfig>,
 }
 
 // ── Summary types (for list endpoints) ────────────────────────────────────────
@@ -430,6 +508,7 @@ pub struct ReportSummary {
     pub test_plan_id: String,
     pub test_plan_name: String,
     pub overall_status: OverallStatus,
+    pub execution_mode: ExecutionMode,
     pub started_at: DateTime<Utc>,
     pub completed_at: DateTime<Utc>,
     pub duration_ms: u64,
@@ -437,6 +516,10 @@ pub struct ReportSummary {
     pub passed_steps: usize,
     pub failed_steps: usize,
     pub collection_id: Option<String>,
+    #[serde(default)]
+    pub load_test_total_iterations: Option<u64>,
+    #[serde(default)]
+    pub load_test_concurrency: Option<usize>,
 }
 
 impl From<&ExecutionReport> for ReportSummary {
@@ -447,6 +530,7 @@ impl From<&ExecutionReport> for ReportSummary {
             test_plan_id: r.test_plan_id.clone(),
             test_plan_name: r.test_plan_name.clone(),
             overall_status: r.overall_status.clone(),
+            execution_mode: r.execution_mode.clone(),
             started_at: r.started_at,
             completed_at: r.completed_at,
             duration_ms: r.duration_ms,
@@ -454,6 +538,8 @@ impl From<&ExecutionReport> for ReportSummary {
             passed_steps: r.passed_steps,
             failed_steps: r.failed_steps,
             collection_id: r.collection_id.clone(),
+            load_test_total_iterations: r.load_test_summary.as_ref().map(|s| s.total_iterations),
+            load_test_concurrency: r.load_test_summary.as_ref().map(|s| s.config.concurrency),
         }
     }
 }

@@ -9,9 +9,11 @@ use crate::{
     ai_generator,
     models::{
         Assertion, AssertionOperator, AssertionResult, AssertionType, Environment, Execution,
-        ExecutionReport, ExecutionStatus, ExtractVariable, HttpMethod, HttpRequest, KeyValue,
-        MappingSource, OverallStatus, RequestSnapshot, ResolvedVariable, ResponseSnapshot,
-        StepResult, TestPlan, VariableMapping, VariableSource,
+        ExecutionMode, ExecutionReport, ExecutionStatus, ExtractVariable, HttpMethod, HttpRequest,
+        KeyValue, LoadTestConfig, LoadTestErrorSummary, LoadTestIterationSample,
+        LoadTestStepSummary, LoadTestSummary, MappingSource, OverallStatus, RequestSnapshot,
+        ResolvedVariable, ResponseSnapshot, StepResult, TestPlan, TestPlanStep, VariableMapping,
+        VariableSource,
     },
     state::AppState,
     storage,
@@ -21,9 +23,18 @@ use regex::Regex;
 use reqwest::Client;
 use serde_json::Value;
 use serde_json_path::JsonPath;
-use std::collections::HashMap;
-use std::time::Instant;
-use tokio::time::{Duration, sleep};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
+use tokio::{
+    task::JoinSet,
+    time::{Duration, sleep},
+};
 use uuid::Uuid;
 
 /// Spawn the background executor loop. Call once from `main`.
@@ -60,6 +71,27 @@ async fn poll_and_run(state: &AppState) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Clone)]
+struct ExecutableStep {
+    step: TestPlanStep,
+    request: Option<HttpRequest>,
+    load_error: Option<String>,
+}
+
+struct IterationOutcome {
+    iteration: u64,
+    passed: bool,
+    duration_ms: u64,
+    step_results: Vec<StepResult>,
+}
+
+struct StepAggregate {
+    step_name: String,
+    durations: Vec<u64>,
+    passed_requests: u64,
+    failed_requests: u64,
+}
+
 async fn run_execution(mut exec: Execution, state: &AppState) {
     // Mark as running
     exec.status = ExecutionStatus::Running;
@@ -72,20 +104,72 @@ async fn run_execution(mut exec: Execution, state: &AppState) {
         Err(e) => {
             tracing::error!("Test plan not found: {e}");
             finalize_execution(&mut exec, ExecutionStatus::Failed, state).await;
+            state.clear_cancellation(&exec.id);
             return;
         }
     };
 
-    let client = Client::builder()
+    let client = build_http_client();
+    let base_variables = load_environment_variables(&exec).await;
+    let executable_steps = load_executable_steps(&plan).await;
+
+    let (mut report, execution_status, passed, failed) = match exec.mode {
+        ExecutionMode::Standard => {
+            run_standard_execution(&exec, &plan, &client, &executable_steps, &base_variables).await
+        }
+        ExecutionMode::LoadTest => {
+            run_load_test_execution(
+                state,
+                &exec,
+                &plan,
+                &client,
+                &executable_steps,
+                &base_variables,
+            )
+            .await
+        }
+    };
+
+    // Save report immediately so it's available even if AI summary fails
+    if let Err(e) = storage::write(storage::reports_dir(), &report.id, &report).await {
+        tracing::error!("Failed to write report: {e}");
+    }
+
+    // Generate AI summary for standard reports only.
+    if report.execution_mode == ExecutionMode::Standard
+        && let Some(summary) =
+            ai_generator::generate_report_summary(&report, &state.config.openai).await
+    {
+        report.ai_summary = Some(summary);
+        if let Err(e) = storage::write(storage::reports_dir(), &report.id, &report).await {
+            tracing::error!("Failed to save report with AI summary: {e}");
+        }
+    }
+
+    exec.report_id = Some(report.id.clone());
+    exec.status = execution_status;
+    exec.completed_at = Some(Utc::now());
+    update_execution_in_file(&exec, state).await;
+    state.clear_cancellation(&exec.id);
+
+    tracing::info!(
+        id = %exec.id,
+        status = ?exec.status,
+        passed = passed,
+        failed = failed,
+        "Execution complete"
+    );
+}
+
+fn build_http_client() -> Client {
+    Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
 
-    let started_at = Utc::now();
-    let mut step_results: Vec<StepResult> = Vec::new();
-    let mut variables: HashMap<String, String> = HashMap::new();
-
-    // Seed lowest-priority variables from the selected environment (if any).
+async fn load_environment_variables(exec: &Execution) -> HashMap<String, String> {
+    let mut variables = HashMap::new();
     if let Some(env_id) = &exec.environment_id {
         match storage::read::<Environment>(storage::environments_dir(), env_id).await {
             Ok(env) => {
@@ -95,107 +179,451 @@ async fn run_execution(mut exec: Execution, state: &AppState) {
             Err(e) => tracing::warn!("Could not load environment {env_id}: {e}"),
         }
     }
+    variables
+}
 
-    let mut any_failed = false;
-
+async fn load_executable_steps(plan: &TestPlan) -> Vec<ExecutableStep> {
+    let mut steps = Vec::new();
     for step in plan.steps.iter().filter(|s| s.enabled) {
-        let req_def =
+        let (request, load_error) =
             match storage::read::<HttpRequest>(storage::requests_dir(), &step.request_id).await {
-                Ok(r) => r,
-                Err(e) => {
-                    step_results.push(StepResult {
-                        step_id: step.id.clone(),
-                        request_name: step.name.clone(),
-                        request: RequestSnapshot {
-                            method: "UNKNOWN".into(),
-                            url: "".into(),
-                            headers: vec![],
-                            body: None,
-                        },
-                        response: None,
-                        assertion_results: vec![],
-                        passed: false,
-                        error: Some(format!("Request definition not found: {e}")),
-                        input_variables: vec![],
-                        output_variables: vec![],
-                    });
-                    any_failed = true;
-                    continue;
-                }
+                Ok(request) => (Some(request), None),
+                Err(e) => (None, Some(format!("Request definition not found: {e}"))),
             };
-
-        let step_result = execute_step(
-            &client,
-            &step.id,
-            &req_def,
-            &step.variable_mappings,
-            &mut variables,
-        )
-        .await;
-        if !step_result.passed {
-            any_failed = true;
-        }
-        step_results.push(step_result);
+        steps.push(ExecutableStep {
+            step: step.clone(),
+            request,
+            load_error,
+        });
     }
+    steps
+}
 
+async fn run_standard_execution(
+    exec: &Execution,
+    plan: &TestPlan,
+    client: &Client,
+    executable_steps: &[ExecutableStep],
+    base_variables: &HashMap<String, String>,
+) -> (ExecutionReport, ExecutionStatus, usize, usize) {
+    let started_at = Utc::now();
+    let mut variables = base_variables.clone();
+    let step_results = execute_loaded_plan(client, executable_steps, &mut variables).await;
     let completed_at = Utc::now();
     let duration_ms = (completed_at - started_at).num_milliseconds().max(0) as u64;
-    let total = step_results.len();
     let passed = step_results.iter().filter(|r| r.passed).count();
-    let failed = total - passed;
+    let failed = step_results.len().saturating_sub(passed);
+    let any_failed = failed > 0;
 
-    let mut report = ExecutionReport {
-        id: Uuid::new_v4().to_string(),
-        execution_id: exec.id.clone(),
-        test_plan_id: exec.test_plan_id.clone(),
-        test_plan_name: exec.test_plan_name.clone(),
-        overall_status: if any_failed {
-            OverallStatus::Failed
-        } else {
-            OverallStatus::Passed
+    (
+        ExecutionReport {
+            id: Uuid::new_v4().to_string(),
+            execution_id: exec.id.clone(),
+            test_plan_id: exec.test_plan_id.clone(),
+            test_plan_name: exec.test_plan_name.clone(),
+            overall_status: if any_failed {
+                OverallStatus::Failed
+            } else {
+                OverallStatus::Passed
+            },
+            execution_mode: ExecutionMode::Standard,
+            started_at,
+            completed_at,
+            duration_ms,
+            total_steps: step_results.len(),
+            passed_steps: passed,
+            failed_steps: failed,
+            step_results,
+            collection_id: plan.collection_id.clone(),
+            ai_summary: None,
+            load_test_summary: None,
         },
-        started_at,
-        completed_at,
-        duration_ms,
-        total_steps: total,
-        passed_steps: passed,
-        failed_steps: failed,
-        step_results,
-        collection_id: plan.collection_id.clone(),
-        ai_summary: None,
+        if any_failed {
+            ExecutionStatus::Failed
+        } else {
+            ExecutionStatus::Completed
+        },
+        passed,
+        failed,
+    )
+}
+
+async fn run_load_test_execution(
+    state: &AppState,
+    exec: &Execution,
+    plan: &TestPlan,
+    client: &Client,
+    executable_steps: &[ExecutableStep],
+    base_variables: &HashMap<String, String>,
+) -> (ExecutionReport, ExecutionStatus, usize, usize) {
+    let Some(config) = exec.load_test_config.clone() else {
+        let now = Utc::now();
+        return (
+            ExecutionReport {
+                id: Uuid::new_v4().to_string(),
+                execution_id: exec.id.clone(),
+                test_plan_id: exec.test_plan_id.clone(),
+                test_plan_name: exec.test_plan_name.clone(),
+                overall_status: OverallStatus::Failed,
+                execution_mode: ExecutionMode::LoadTest,
+                started_at: now,
+                completed_at: now,
+                duration_ms: 0,
+                total_steps: 0,
+                passed_steps: 0,
+                failed_steps: 0,
+                step_results: vec![],
+                collection_id: plan.collection_id.clone(),
+                ai_summary: None,
+                load_test_summary: Some(LoadTestSummary {
+                    config: LoadTestConfig {
+                        concurrency: 1,
+                        duration_seconds: None,
+                        total_iterations: None,
+                        ramp_up_seconds: None,
+                    },
+                    total_iterations: 0,
+                    successful_iterations: 0,
+                    failed_iterations: 0,
+                    total_requests: 0,
+                    cancelled: false,
+                    avg_iteration_duration_ms: 0.0,
+                    p95_iteration_duration_ms: 0,
+                    throughput_iterations_per_sec: 0.0,
+                    throughput_requests_per_sec: 0.0,
+                    per_step: vec![],
+                    error_counts: vec![LoadTestErrorSummary {
+                        step_id: "load_test".into(),
+                        step_name: "Load test".into(),
+                        error: "Missing load_test_config".into(),
+                        count: 1,
+                    }],
+                    sampled_iterations: vec![],
+                }),
+            },
+            ExecutionStatus::Failed,
+            0,
+            0,
+        );
     };
 
-    // Save report immediately so it's available even if AI summary fails
-    if let Err(e) = storage::write(storage::reports_dir(), &report.id, &report).await {
-        tracing::error!("Failed to write report: {e}");
+    let started_at = Utc::now();
+    let wall_start = Instant::now();
+    let deadline = config
+        .duration_seconds
+        .map(|secs| wall_start + Duration::from_secs(secs));
+    let total_iterations = config.total_iterations;
+    let issued = Arc::new(AtomicU64::new(0));
+    let mut join_set = JoinSet::new();
+
+    for worker_index in 0..config.concurrency {
+        let worker_exec_id = exec.id.clone();
+        let worker_steps = executable_steps.to_vec();
+        let worker_vars = base_variables.clone();
+        let worker_client = client.clone();
+        let worker_state = state.clone();
+        let worker_issued = Arc::clone(&issued);
+        let worker_config = config.clone();
+        join_set.spawn(async move {
+            if let Some(delay) = ramp_up_delay(
+                worker_index,
+                worker_config.concurrency,
+                worker_config.ramp_up_seconds,
+            ) {
+                sleep(delay).await;
+            }
+
+            let mut outcomes = Vec::new();
+            loop {
+                if worker_state.is_cancellation_requested(&worker_exec_id) {
+                    break;
+                }
+                if let Some(end) = deadline
+                    && Instant::now() >= end
+                {
+                    break;
+                }
+
+                let iteration = worker_issued.fetch_add(1, Ordering::SeqCst) + 1;
+                if let Some(max_iterations) = total_iterations
+                    && iteration > max_iterations
+                {
+                    break;
+                }
+
+                let mut variables = worker_vars.clone();
+                let start = Instant::now();
+                let step_results =
+                    execute_loaded_plan(&worker_client, &worker_steps, &mut variables).await;
+                outcomes.push(IterationOutcome {
+                    iteration,
+                    passed: step_results.iter().all(|r| r.passed),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                    step_results,
+                });
+            }
+
+            outcomes
+        });
     }
 
-    // Generate AI summary and re-save if configured
-    if let Some(summary) =
-        ai_generator::generate_report_summary(&report, &state.config.openai).await
-    {
-        report.ai_summary = Some(summary);
-        if let Err(e) = storage::write(storage::reports_dir(), &report.id, &report).await {
-            tracing::error!("Failed to save report with AI summary: {e}");
+    let mut outcomes = Vec::new();
+    while let Some(result) = join_set.join_next().await {
+        match result {
+            Ok(worker_outcomes) => outcomes.extend(worker_outcomes),
+            Err(e) => tracing::error!("Load-test worker failed: {e}"),
         }
     }
 
-    exec.report_id = Some(report.id);
-    exec.status = if any_failed {
+    outcomes.sort_by_key(|outcome| outcome.iteration);
+
+    let duration_ms = wall_start.elapsed().as_millis() as u64;
+    let cancelled = state.is_cancellation_requested(&exec.id);
+    let mut successful_iterations = 0_u64;
+    let mut failed_iterations = 0_u64;
+    let mut total_requests = 0_u64;
+    let mut iteration_durations = Vec::new();
+    let mut step_aggregates: BTreeMap<String, StepAggregate> = BTreeMap::new();
+    let mut error_counts: BTreeMap<(String, String, String), u64> = BTreeMap::new();
+    let mut sampled_iterations = Vec::new();
+    let mut success_samples = 0_usize;
+
+    for outcome in &outcomes {
+        total_requests += outcome.step_results.len() as u64;
+        iteration_durations.push(outcome.duration_ms);
+        if outcome.passed {
+            successful_iterations += 1;
+            if success_samples < 3 {
+                sampled_iterations.push(LoadTestIterationSample {
+                    iteration: outcome.iteration,
+                    passed: true,
+                    duration_ms: outcome.duration_ms,
+                    step_results: outcome.step_results.clone(),
+                });
+                success_samples += 1;
+            }
+        } else {
+            failed_iterations += 1;
+            if sampled_iterations
+                .iter()
+                .filter(|sample| !sample.passed)
+                .count()
+                < 10
+            {
+                sampled_iterations.push(LoadTestIterationSample {
+                    iteration: outcome.iteration,
+                    passed: false,
+                    duration_ms: outcome.duration_ms,
+                    step_results: outcome.step_results.clone(),
+                });
+            }
+        }
+
+        for step_result in &outcome.step_results {
+            let aggregate = step_aggregates
+                .entry(step_result.step_id.clone())
+                .or_insert_with(|| StepAggregate {
+                    step_name: step_result.request_name.clone(),
+                    durations: Vec::new(),
+                    passed_requests: 0,
+                    failed_requests: 0,
+                });
+
+            if let Some(response) = &step_result.response {
+                aggregate.durations.push(response.duration_ms);
+            }
+
+            if step_result.passed {
+                aggregate.passed_requests += 1;
+            } else {
+                aggregate.failed_requests += 1;
+                let error_label = step_result
+                    .error
+                    .clone()
+                    .unwrap_or_else(|| "Assertion failed".to_string());
+                *error_counts
+                    .entry((
+                        step_result.step_id.clone(),
+                        step_result.request_name.clone(),
+                        error_label,
+                    ))
+                    .or_insert(0) += 1;
+            }
+        }
+    }
+
+    let per_step = step_aggregates
+        .into_iter()
+        .map(|(step_id, aggregate)| {
+            let total = aggregate.passed_requests + aggregate.failed_requests;
+            let (avg_duration_ms, min_duration_ms, max_duration_ms, p95_duration_ms) =
+                summarize_durations(&aggregate.durations);
+            LoadTestStepSummary {
+                step_id,
+                step_name: aggregate.step_name,
+                total_requests: total,
+                passed_requests: aggregate.passed_requests,
+                failed_requests: aggregate.failed_requests,
+                avg_duration_ms,
+                min_duration_ms,
+                max_duration_ms,
+                p95_duration_ms,
+            }
+        })
+        .collect();
+
+    let error_counts = error_counts
+        .into_iter()
+        .map(
+            |((step_id, step_name, error), count)| LoadTestErrorSummary {
+                step_id,
+                step_name,
+                error,
+                count,
+            },
+        )
+        .collect();
+
+    let (avg_iteration_duration_ms, _, _, p95_iteration_duration_ms) =
+        summarize_durations(&iteration_durations);
+    let seconds = (duration_ms as f64 / 1000.0).max(0.001);
+    let summary = LoadTestSummary {
+        config: config.clone(),
+        total_iterations: outcomes.len() as u64,
+        successful_iterations,
+        failed_iterations,
+        total_requests,
+        cancelled,
+        avg_iteration_duration_ms,
+        p95_iteration_duration_ms,
+        throughput_iterations_per_sec: outcomes.len() as f64 / seconds,
+        throughput_requests_per_sec: total_requests as f64 / seconds,
+        per_step,
+        error_counts,
+        sampled_iterations,
+    };
+
+    let completed_at = Utc::now();
+    let execution_status = if cancelled {
+        ExecutionStatus::Cancelled
+    } else if failed_iterations > 0 {
         ExecutionStatus::Failed
     } else {
         ExecutionStatus::Completed
     };
-    exec.completed_at = Some(Utc::now());
-    update_execution_in_file(&exec, state).await;
 
-    tracing::info!(
-        id = %exec.id,
-        status = ?exec.status,
-        passed = passed,
-        failed = failed,
-        "Execution complete"
-    );
+    (
+        ExecutionReport {
+            id: Uuid::new_v4().to_string(),
+            execution_id: exec.id.clone(),
+            test_plan_id: exec.test_plan_id.clone(),
+            test_plan_name: exec.test_plan_name.clone(),
+            overall_status: if cancelled || failed_iterations > 0 {
+                OverallStatus::Failed
+            } else {
+                OverallStatus::Passed
+            },
+            execution_mode: ExecutionMode::LoadTest,
+            started_at,
+            completed_at,
+            duration_ms,
+            total_steps: outcomes.len(),
+            passed_steps: successful_iterations as usize,
+            failed_steps: failed_iterations as usize,
+            step_results: vec![],
+            collection_id: plan.collection_id.clone(),
+            ai_summary: None,
+            load_test_summary: Some(summary),
+        },
+        execution_status,
+        successful_iterations as usize,
+        failed_iterations as usize,
+    )
+}
+
+fn ramp_up_delay(
+    worker_index: usize,
+    concurrency: usize,
+    ramp_up_seconds: Option<u64>,
+) -> Option<Duration> {
+    let ramp = ramp_up_seconds?;
+    if ramp == 0 || concurrency <= 1 || worker_index == 0 {
+        return None;
+    }
+    let total_ms = ramp.saturating_mul(1000);
+    let delay_ms = total_ms.saturating_mul(worker_index as u64) / (concurrency as u64 - 1);
+    Some(Duration::from_millis(delay_ms))
+}
+
+fn summarize_durations(durations: &[u64]) -> (f64, u64, u64, u64) {
+    if durations.is_empty() {
+        return (0.0, 0, 0, 0);
+    }
+    let total: u64 = durations.iter().sum();
+    let avg = total as f64 / durations.len() as f64;
+    let min = *durations.iter().min().unwrap_or(&0);
+    let max = *durations.iter().max().unwrap_or(&0);
+    let mut sorted = durations.to_vec();
+    sorted.sort_unstable();
+    let p95_index = ((sorted.len() - 1) * 95) / 100;
+    let p95 = sorted[p95_index];
+    (avg, min, max, p95)
+}
+
+async fn execute_loaded_plan(
+    client: &Client,
+    executable_steps: &[ExecutableStep],
+    variables: &mut HashMap<String, String>,
+) -> Vec<StepResult> {
+    let mut step_results = Vec::new();
+    for executable in executable_steps {
+        match (&executable.request, &executable.load_error) {
+            (Some(request), _) => {
+                let step_result = execute_step(
+                    client,
+                    &executable.step.id,
+                    request,
+                    &executable.step.variable_mappings,
+                    variables,
+                )
+                .await;
+                step_results.push(step_result);
+            }
+            (None, Some(error)) => step_results.push(StepResult {
+                step_id: executable.step.id.clone(),
+                request_name: executable.step.name.clone(),
+                request: RequestSnapshot {
+                    method: "UNKNOWN".into(),
+                    url: "".into(),
+                    headers: vec![],
+                    body: None,
+                },
+                response: None,
+                assertion_results: vec![],
+                passed: false,
+                error: Some(error.clone()),
+                input_variables: vec![],
+                output_variables: vec![],
+            }),
+            (None, None) => step_results.push(StepResult {
+                step_id: executable.step.id.clone(),
+                request_name: executable.step.name.clone(),
+                request: RequestSnapshot {
+                    method: "UNKNOWN".into(),
+                    url: "".into(),
+                    headers: vec![],
+                    body: None,
+                },
+                response: None,
+                assertion_results: vec![],
+                passed: false,
+                error: Some("Request definition missing".into()),
+                input_variables: vec![],
+                output_variables: vec![],
+            }),
+        }
+    }
+    step_results
 }
 
 /// Update a single execution record inside the shared file (lock not held — caller manages).

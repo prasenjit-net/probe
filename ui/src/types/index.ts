@@ -162,12 +162,21 @@ export interface TestPlanSummary {
 // ── Executions ────────────────────────────────────────────────────────────────
 
 export type ExecutionStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type ExecutionMode = 'standard' | 'load_test'
+
+export interface LoadTestConfig {
+  concurrency: number
+  duration_seconds?: number
+  total_iterations?: number
+  ramp_up_seconds?: number
+}
 
 export interface Execution {
   id: string
   test_plan_id: string
   test_plan_name: string
   status: ExecutionStatus
+  mode: ExecutionMode
   scheduled_at?: string
   created_at: string
   started_at?: string
@@ -175,6 +184,7 @@ export interface Execution {
   report_id?: string
   environment_id?: string
   environment_name?: string
+  load_test_config?: LoadTestConfig
 }
 
 // ── Environment ───────────────────────────────────────────────────────────────
@@ -235,6 +245,7 @@ export interface ExecutionReport {
   test_plan_id: string
   test_plan_name: string
   overall_status: OverallStatus
+  execution_mode: ExecutionMode
   started_at: string
   completed_at: string
   duration_ms: number
@@ -244,6 +255,7 @@ export interface ExecutionReport {
   step_results: StepResult[]
   collection_id?: string
   ai_summary?: string
+  load_test_summary?: LoadTestSummary
 }
 
 export interface ReportSummary {
@@ -252,6 +264,7 @@ export interface ReportSummary {
   test_plan_id: string
   test_plan_name: string
   overall_status: OverallStatus
+  execution_mode: ExecutionMode
   started_at: string
   completed_at: string
   duration_ms: number
@@ -259,6 +272,50 @@ export interface ReportSummary {
   passed_steps: number
   failed_steps: number
   collection_id?: string
+  load_test_total_iterations?: number
+  load_test_concurrency?: number
+}
+
+export interface LoadTestStepSummary {
+  step_id: string
+  step_name: string
+  total_requests: number
+  passed_requests: number
+  failed_requests: number
+  avg_duration_ms: number
+  min_duration_ms: number
+  max_duration_ms: number
+  p95_duration_ms: number
+}
+
+export interface LoadTestErrorSummary {
+  step_id: string
+  step_name: string
+  error: string
+  count: number
+}
+
+export interface LoadTestIterationSample {
+  iteration: number
+  passed: boolean
+  duration_ms: number
+  step_results: StepResult[]
+}
+
+export interface LoadTestSummary {
+  config: LoadTestConfig
+  total_iterations: number
+  successful_iterations: number
+  failed_iterations: number
+  total_requests: number
+  cancelled: boolean
+  avg_iteration_duration_ms: number
+  p95_iteration_duration_ms: number
+  throughput_iterations_per_sec: number
+  throughput_requests_per_sec: number
+  per_step: LoadTestStepSummary[]
+  error_counts: LoadTestErrorSummary[]
+  sampled_iterations: LoadTestIterationSample[]
 }
 
 // ── API Specifications ─────────────────────────────────────────────────────────
@@ -337,4 +394,3 @@ export interface Collection {
 }
 
 export type CollectionSummary = Collection
-

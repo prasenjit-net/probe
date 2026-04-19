@@ -9,7 +9,7 @@ export default defineConfig({
     proxy: {
       // Forward all /api calls to the Rust backend during development.
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:7654',
         changeOrigin: true,
       },
     },

@@ -64,11 +64,11 @@ run-release: build-release ## Build (release) then start the server
 #  Development mode
 #
 #  Starts the Rust backend (cargo watch) and the Vite dev-server in parallel.
-#  The Vite dev-server proxies /api → http://localhost:3000.
+#  The Vite dev-server proxies /api → http://localhost:7654.
 #  Requires:  cargo-watch  (cargo install cargo-watch)
 # ────────────────────────────────────────────────────────────────────────────
 dev: ## Run backend + UI dev-server concurrently (requires cargo-watch)
-	@echo "─── Starting Vite dev server on :5173 and Rust backend on :3000 ───"
+	@echo "─── Starting Vite dev server on :5173 and Rust backend on :7654 ───"
 	@trap 'kill 0' SIGINT; \
 	  (cd $(UI_DIR) && $(NPM) run dev) & \
 	  cargo watch -x run & \

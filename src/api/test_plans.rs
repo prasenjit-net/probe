@@ -53,7 +53,7 @@ pub async fn list_test_plans(State(state): State<AppState>, jar: CookieJar) -> i
     }
     match storage::list::<TestPlan>(storage::test_plans_dir()).await {
         Ok(mut items) => {
-            items.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+            items.sort_by_key(|item| std::cmp::Reverse(item.updated_at));
             let summaries: Vec<TestPlanSummary> = items.iter().map(|p| p.into()).collect();
             Json(summaries).into_response()
         }

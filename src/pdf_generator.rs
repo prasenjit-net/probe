@@ -394,11 +394,12 @@ pub fn generate(report: &ExecutionReport) -> Vec<u8> {
     let bx = ML + (box_w + gap) * 3.0;
     b.rect(bx, b.y, box_w, box_h, (0.96, 0.96, 0.99));
     b.text("PASS RATE", bx + 2.0, S_SMALL, true, C_LABEL);
-    let rate = if report.total_steps > 0 {
-        format!("{}%", (report.passed_steps * 100) / report.total_steps)
-    } else {
-        "N/A".into()
-    };
+    let rate = report
+        .passed_steps
+        .checked_mul(100)
+        .and_then(|value| value.checked_div(report.total_steps))
+        .map(|value| format!("{value}%"))
+        .unwrap_or_else(|| "N/A".into());
     let saved_y = b.y;
     b.y -= 5.0;
     b.text(&rate, bx + 2.0, 16.0, true, (0.2, 0.2, 0.5));

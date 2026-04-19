@@ -60,7 +60,7 @@ pub async fn list_archives(State(state): State<AppState>, jar: CookieJar) -> imp
             }
         }
     }
-    archives.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    archives.sort_by_key(|archive| std::cmp::Reverse(archive.created_at.clone()));
     Json(archives).into_response()
 }
 

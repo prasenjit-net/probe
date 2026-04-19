@@ -45,7 +45,7 @@ pub async fn list_collections(
             if let Some(kind) = &query.kind {
                 items.retain(|c| &c.kind == kind);
             }
-            items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+            items.sort_by_key(|a| a.name.to_lowercase());
             let summaries: Vec<CollectionSummary> = items.iter().map(|c| c.into()).collect();
             Json(summaries).into_response()
         }

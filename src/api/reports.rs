@@ -24,7 +24,7 @@ pub async fn list_reports(State(state): State<AppState>, jar: CookieJar) -> impl
     }
     match storage::list::<ExecutionReport>(storage::reports_dir()).await {
         Ok(mut items) => {
-            items.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+            items.sort_by_key(|item| std::cmp::Reverse(item.started_at));
             let summaries: Vec<ReportSummary> = items.iter().map(|r| r.into()).collect();
             Json(summaries).into_response()
         }

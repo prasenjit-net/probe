@@ -166,7 +166,7 @@ pub async fn list_specs(State(state): State<AppState>, jar: CookieJar) -> impl I
     }
     match storage::list::<SpecRecord>(storage::specs_dir()).await {
         Ok(mut items) => {
-            items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
             let summaries: Vec<SpecSummary> = items.iter().map(SpecSummary::from).collect();
             Json(summaries).into_response()
         }

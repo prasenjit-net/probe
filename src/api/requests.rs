@@ -29,7 +29,7 @@ pub async fn list_requests(State(state): State<AppState>, jar: CookieJar) -> imp
     }
     match storage::list::<HttpRequest>(storage::requests_dir()).await {
         Ok(mut items) => {
-            items.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+            items.sort_by_key(|item| std::cmp::Reverse(item.updated_at));
             let summaries: Vec<HttpRequestSummary> = items.iter().map(|r| r.into()).collect();
             Json(summaries).into_response()
         }

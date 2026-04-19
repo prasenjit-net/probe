@@ -546,7 +546,9 @@ fn ramp_up_delay(
         return None;
     }
     let total_ms = ramp.saturating_mul(1000);
-    let delay_ms = total_ms.saturating_mul(worker_index as u64) / (concurrency as u64 - 1);
+    let delay_ms = total_ms
+        .saturating_mul(worker_index as u64)
+        .checked_div(concurrency as u64 - 1)?;
     Some(Duration::from_millis(delay_ms))
 }
 
@@ -634,7 +636,7 @@ async fn update_execution_in_file(exec: &Execution, state: &AppState) {
     }
     let max = state.config.app.max_executions;
     // Trim: keep active entries + most-recent finished up to max
-    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
     if items.len() > max {
         let mut active: Vec<Execution> = Vec::new();
         let mut finished: Vec<Execution> = Vec::new();
@@ -647,7 +649,7 @@ async fn update_execution_in_file(exec: &Execution, state: &AppState) {
         let slots = max.saturating_sub(active.len());
         let mut kept: Vec<Execution> = active;
         kept.extend(finished.into_iter().take(slots));
-        kept.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        kept.sort_by_key(|item| std::cmp::Reverse(item.created_at));
         items = kept;
     }
     if let Err(e) = storage::write_vec(storage::executions_file(), &items).await {

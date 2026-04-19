@@ -30,7 +30,7 @@ async fn read_all(_state: &AppState) -> Vec<Execution> {
 async fn save_all(state: &AppState, mut items: Vec<Execution>) {
     let max = state.config.app.max_executions;
     // Sort newest-first so we keep the most recent entries.
-    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
 
     if items.len() > max {
         let mut keep: Vec<Execution> = Vec::with_capacity(max);
@@ -46,7 +46,7 @@ async fn save_all(state: &AppState, mut items: Vec<Execution>) {
         let slots = max.saturating_sub(active.len());
         keep.extend(active);
         keep.extend(finished.into_iter().take(slots));
-        keep.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        keep.sort_by_key(|item| std::cmp::Reverse(item.created_at));
         items = keep;
     }
 
@@ -77,7 +77,7 @@ pub async fn list_executions(State(state): State<AppState>, jar: CookieJar) -> i
     }
     let _lock = state.execution_lock.lock().await;
     let mut items = read_all(&state).await;
-    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
     Json(items).into_response()
 }
 

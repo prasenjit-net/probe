@@ -42,7 +42,10 @@ pub async fn list_archives(State(state): State<AppState>, jar: CookieJar) -> imp
     while let Ok(Some(entry)) = rd.next_entry().await {
         let path = entry.path();
         if path.extension().map(|e| e == "zip").unwrap_or(false) {
-            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            let name = match path.file_name() {
+                Some(n) => n.to_string_lossy().into_owned(),
+                None => continue,
+            };
             if let Ok(meta) = fs::metadata(&path).await {
                 let created_at = meta
                     .modified()
@@ -57,7 +60,7 @@ pub async fn list_archives(State(state): State<AppState>, jar: CookieJar) -> imp
             }
         }
     }
-    archives.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    archives.sort_by_key(|archive| std::cmp::Reverse(archive.created_at.clone()));
     Json(archives).into_response()
 }
 
@@ -118,9 +121,12 @@ pub async fn download_archive(
         Ok(bytes) => {
             let mut headers = HeaderMap::new();
             headers.insert("Content-Type", HeaderValue::from_static("application/zip"));
+            let disposition = format!("attachment; filename=\"{}\"", name.replace('"', "\\\""));
             headers.insert(
                 "Content-Disposition",
-                HeaderValue::from_str(&format!("attachment; filename=\"{}\"", name)).unwrap(),
+                HeaderValue::from_str(&disposition).unwrap_or_else(|_| {
+                    HeaderValue::from_static("attachment; filename=\"archive.zip\"")
+                }),
             );
             (headers, Body::from(bytes)).into_response()
         }
@@ -153,6 +159,10 @@ pub async fn restore_archive(
         Ok(b) => b,
         Err(e) => return internal_error(e.to_string()),
     };
+
+    // Hold the execution lock for the entire clear+extract so no concurrent
+    // write can sneak in between the two operations and lose data.
+    let _lock = state.execution_lock.lock().await;
 
     // Clear all existing data (except archives directory)
     let data_dir = storage::data_dir();

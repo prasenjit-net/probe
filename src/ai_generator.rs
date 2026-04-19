@@ -229,13 +229,28 @@ pub async fn generate_from_spec(
         .map(|e| e.base_url.clone())
         .unwrap_or_default();
 
+    let plan_steps = plan
+        .steps
+        .into_iter()
+        .filter_map(|step| {
+            requests
+                .iter()
+                .find(|request| request.name == step.request_name)
+                .cloned()
+                .map(|request| PlanStepPreview {
+                    request,
+                    step_name: step.step_name,
+                    variable_mappings: step.variable_mappings,
+                })
+        })
+        .collect();
+
     Ok(GenerationPreview {
         spec_id: spec.id.clone(),
         base_url,
-        requests,
         plan_name: plan.name,
         plan_description: plan.description,
-        plan_steps: plan.steps,
+        plan_steps,
     })
 }
 
@@ -443,7 +458,13 @@ fn parse_generated_request(raw: &str) -> Result<GeneratedRequest> {
 struct PlanOutput {
     name: String,
     description: String,
-    steps: Vec<PlanStepPreview>,
+    steps: Vec<PlannedStep>,
+}
+
+struct PlannedStep {
+    request_name: String,
+    step_name: String,
+    variable_mappings: Vec<VarMappingPreview>,
 }
 
 async fn generate_plan(
@@ -499,7 +520,7 @@ fn parse_plan(raw: &str, requests: &[GeneratedRequest]) -> Result<PlanOutput> {
         .map(|(i, r)| (r.name.as_str(), i))
         .collect();
 
-    let steps: Vec<PlanStepPreview> = v["steps"]
+    let steps: Vec<PlannedStep> = v["steps"]
         .as_array()
         .unwrap_or(&vec![])
         .iter()
@@ -516,7 +537,7 @@ fn parse_plan(raw: &str, requests: &[GeneratedRequest]) -> Result<PlanOutput> {
                 .filter_map(parse_var_mapping_preview)
                 .collect();
 
-            Some(PlanStepPreview {
+            Some(PlannedStep {
                 request_name,
                 step_name,
                 variable_mappings,

@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from 'react'
-import { RefreshCw, PlayCircle, X, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, Ban, FileText, Trash2, Globe } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { RefreshCw, PlayCircle, X, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, Ban, FileText, Trash2, Globe, Zap } from 'lucide-react'
 import Layout from '../../components/Layout'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { listExecutions, listTestPlans, enqueueExecution, cancelExecution, clearExecutions } from '../../api/client'
 import { useEnvironment } from '../../context/EnvironmentContext'
-import type { Execution, ExecutionStatus, TestPlanSummary } from '../../types'
+import type { Execution, ExecutionMode, ExecutionStatus, TestPlanSummary } from '../../types'
 
 const STATUS_CONFIG: Record<ExecutionStatus, { label: string; dot: string; text: string; bg: string; icon: typeof Clock }> = {
   queued:    { label: 'Queued',    dot: 'bg-amber-400',   text: 'text-amber-700 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-900/20',   icon: Clock },
@@ -30,6 +30,16 @@ function StatusBadge({ status }: { status: ExecutionStatus }) {
 
 const inp = 'w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow'
 
+const formatLoadProfile = (execution: Pick<Execution, 'load_test_config'>) => {
+  const cfg = execution.load_test_config
+  if (!cfg) return ''
+  const parts = [`${cfg.concurrency} vu`]
+  if (cfg.duration_seconds) parts.push(`${cfg.duration_seconds}s`)
+  if (cfg.total_iterations) parts.push(`${cfg.total_iterations} iterations`)
+  if (cfg.ramp_up_seconds) parts.push(`${cfg.ramp_up_seconds}s ramp`)
+  return parts.join(' · ')
+}
+
 export default function ExecutionQueue() {
   const [executions, setExecutions] = useState<Execution[]>([])
   const [plans, setPlans]           = useState<TestPlanSummary[]>([])
@@ -39,11 +49,17 @@ export default function ExecutionQueue() {
   const [clearing, setClearing]     = useState(false)
   const [selectedPlan, setSelectedPlan] = useState('')
   const [scheduleAt, setScheduleAt] = useState('')
+  const [runMode, setRunMode] = useState<ExecutionMode>('standard')
+  const [loadConcurrency, setLoadConcurrency] = useState('5')
+  const [loadDurationSeconds, setLoadDurationSeconds] = useState('30')
+  const [loadTotalIterations, setLoadTotalIterations] = useState('')
+  const [loadRampUpSeconds, setLoadRampUpSeconds] = useState('')
   const [scheduling, setScheduling] = useState(false)
   const [error, setError]           = useState('')
   const navigate = (url: string) => { window.location.href = url }
   const { environments, activeEnvId } = useEnvironment()
   const [selectedEnvId, setSelectedEnvId] = useState<string>('')
+  const pollingRef = useRef(false)
 
   const load = useCallback(async () => {
     try {
@@ -63,26 +79,74 @@ export default function ExecutionQueue() {
     const id = setInterval(() => {
       setExecutions(prev => {
         const hasActive = prev.some(e => e.status === 'running' || e.status === 'queued')
-        if (hasActive) load()
+        if (hasActive && !pollingRef.current) {
+          pollingRef.current = true
+          load().finally(() => { pollingRef.current = false })
+        }
         return prev
       })
     }, 5000)
     return () => clearInterval(id)
   }, [load])
 
+  const openRunModal = () => {
+    setSelectedEnvId(activeEnvId ?? '')
+    setScheduleAt('')
+    setRunMode('standard')
+    setLoadConcurrency('5')
+    setLoadDurationSeconds('30')
+    setLoadTotalIterations('')
+    setLoadRampUpSeconds('')
+    setError('')
+    setShowModal(true)
+  }
+
   const handleRun = async () => {
     if (!selectedPlan) return
     setScheduling(true)
     try {
-      await enqueueExecution({
+      const payload: {
+        test_plan_id: string
+        scheduled_at?: string
+        environment_id?: string
+        mode?: ExecutionMode
+        load_test_config?: {
+          concurrency: number
+          duration_seconds?: number
+          total_iterations?: number
+          ramp_up_seconds?: number
+        }
+      } = {
         test_plan_id: selectedPlan,
         scheduled_at: scheduleAt ? new Date(scheduleAt).toISOString() : undefined,
         environment_id: selectedEnvId || undefined,
-      })
+      }
+
+      if (runMode === 'load_test') {
+        const concurrency = Number(loadConcurrency)
+        const durationSeconds = Number(loadDurationSeconds)
+        const totalIterations = Number(loadTotalIterations)
+        const rampUpSeconds = Number(loadRampUpSeconds)
+        if (!Number.isFinite(concurrency) || concurrency <= 0) {
+          throw new Error('Load-test concurrency must be greater than 0')
+        }
+        if ((!Number.isFinite(durationSeconds) || durationSeconds <= 0) && (!Number.isFinite(totalIterations) || totalIterations <= 0)) {
+          throw new Error('Provide a load-test duration or total iterations')
+        }
+        payload.mode = 'load_test'
+        payload.load_test_config = {
+          concurrency,
+          duration_seconds: Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : undefined,
+          total_iterations: Number.isFinite(totalIterations) && totalIterations > 0 ? totalIterations : undefined,
+          ramp_up_seconds: Number.isFinite(rampUpSeconds) && rampUpSeconds > 0 ? rampUpSeconds : undefined,
+        }
+      }
+
+      await enqueueExecution(payload)
       setShowModal(false); setScheduleAt('')
       await load()
-    } catch {
-      setError('Failed to enqueue execution')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to enqueue execution')
     } finally {
       setScheduling(false)
     }
@@ -146,7 +210,7 @@ export default function ExecutionQueue() {
               Clear History
             </button>
             <button
-              onClick={() => { setSelectedEnvId(activeEnvId ?? ''); setShowModal(true) }}
+              onClick={openRunModal}
               className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
             >
               <PlayCircle className="w-4 h-4" strokeWidth={2} />
@@ -187,7 +251,7 @@ export default function ExecutionQueue() {
             <p className="text-base font-semibold text-gray-700 dark:text-gray-300">No executions yet</p>
             <p className="text-sm text-gray-400 mt-1">Run a test plan to see executions here.</p>
             <button
-              onClick={() => { setSelectedEnvId(activeEnvId ?? ''); setShowModal(true) }}
+              onClick={openRunModal}
               className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
             >
               <PlayCircle className="w-4 h-4" strokeWidth={2} />
@@ -213,6 +277,12 @@ export default function ExecutionQueue() {
                       : `Created · ${fmtTime(ex.created_at)}`}
                     {ex.started_at && ` · Started ${fmtTime(ex.started_at)}`}
                     {ex.completed_at && ` · Finished ${fmtTime(ex.completed_at)}`}
+                    {ex.mode === 'load_test' && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-500 dark:text-amber-400">
+                        <Zap className="w-2.5 h-2.5" />
+                        Load test
+                      </span>
+                    )}
                     {ex.environment_name && (
                       <span className="ml-1.5 inline-flex items-center gap-0.5 text-indigo-500 dark:text-indigo-400">
                         <Globe className="w-2.5 h-2.5" />
@@ -220,6 +290,11 @@ export default function ExecutionQueue() {
                       </span>
                     )}
                   </p>
+                  {ex.mode === 'load_test' && ex.load_test_config && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                      {formatLoadProfile(ex)}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
                   {ex.report_id && (
@@ -273,6 +348,33 @@ export default function ExecutionQueue() {
                 </select>
               </div>
               <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
+                  Run Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setRunMode('standard')}
+                    className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                      runMode === 'standard'
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    Standard
+                  </button>
+                  <button
+                    onClick={() => setRunMode('load_test')}
+                    className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                      runMode === 'load_test'
+                        ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    Load Test
+                  </button>
+                </div>
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide flex items-center gap-1.5">
                   <Globe className="w-3.5 h-3.5" />
                   Environment
@@ -287,6 +389,35 @@ export default function ExecutionQueue() {
                   </p>
                 )}
               </div>
+              {runMode === 'load_test' && (
+                <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/10 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                    <Zap className="w-4 h-4" />
+                    <p className="text-sm font-semibold">Load profile</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">Concurrency</label>
+                      <input type="number" min="1" value={loadConcurrency} onChange={e => setLoadConcurrency(e.target.value)} className={inp} />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">Ramp Up (s)</label>
+                      <input type="number" min="0" value={loadRampUpSeconds} onChange={e => setLoadRampUpSeconds(e.target.value)} className={inp} placeholder="Optional" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">Duration (s)</label>
+                      <input type="number" min="0" value={loadDurationSeconds} onChange={e => setLoadDurationSeconds(e.target.value)} className={inp} placeholder="30" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">Total Iterations</label>
+                      <input type="number" min="0" value={loadTotalIterations} onChange={e => setLoadTotalIterations(e.target.value)} className={inp} placeholder="Optional" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-amber-700/80 dark:text-amber-300/80">
+                    Probe will run the same test plan concurrently and store one aggregate report with sampled iterations.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
                   Schedule (leave empty to run now)
@@ -305,7 +436,7 @@ export default function ExecutionQueue() {
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
                 >
                   {scheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-                  {scheduling ? 'Queuing…' : scheduleAt ? 'Schedule' : 'Run Now'}
+                  {scheduling ? 'Queuing…' : scheduleAt ? 'Schedule' : runMode === 'load_test' ? 'Start Load Test' : 'Run Now'}
                 </button>
                 <button
                   onClick={() => setShowModal(false)}
@@ -331,5 +462,3 @@ export default function ExecutionQueue() {
     </Layout>
   )
 }
-
-

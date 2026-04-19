@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  RefreshCw, Globe, ClipboardList, PlayCircle, FileText,
+  RefreshCw, Link2, ClipboardList, PlayCircle, FileText,
   CheckCircle2, XCircle, Clock, TrendingUp, Activity,
-  ArrowRight, Loader2, AlertTriangle,
+  ArrowRight, Loader2, AlertTriangle, X, Globe, Zap,
 } from 'lucide-react'
 import { api } from '../api/client'
-import { listRequests, listTestPlans, listExecutions, listReports } from '../api/client'
+import { enqueueExecution, listTestPlans, listExecutions, listReports } from '../api/client'
 import Layout from '../components/Layout'
 import type {
-  HealthData, HttpRequestSummary, TestPlanSummary,
-  Execution, ReportSummary, ExecutionStatus,
+  HealthData, TestPlanSummary,
+  Execution, ReportSummary, ExecutionMode, ExecutionStatus,
 } from '../types'
+import { useEnvironment } from '../context/EnvironmentContext'
 
 const fmtDuration = (ms: number) => ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
 
@@ -26,11 +27,6 @@ function formatUptime(seconds: number): string {
   return `${s}s`
 }
 
-const METHOD_COLORS: Record<string, string> = {
-  GET: 'bg-emerald-500', POST: 'bg-blue-500', PUT: 'bg-amber-500',
-  PATCH: 'bg-orange-500', DELETE: 'bg-red-500', HEAD: 'bg-purple-500', OPTIONS: 'bg-gray-500',
-}
-
 const EXEC_STATUS_CONFIG: Record<ExecutionStatus, { label: string; dot: string; text: string }> = {
   queued:    { label: 'Queued',    dot: 'bg-amber-400',  text: 'text-amber-700 dark:text-amber-400' },
   running:   { label: 'Running',   dot: 'bg-blue-500',   text: 'text-blue-700 dark:text-blue-400'   },
@@ -38,6 +34,8 @@ const EXEC_STATUS_CONFIG: Record<ExecutionStatus, { label: string; dot: string; 
   failed:    { label: 'Failed',    dot: 'bg-red-500',    text: 'text-red-700 dark:text-red-400'     },
   cancelled: { label: 'Cancelled', dot: 'bg-gray-400',   text: 'text-gray-500 dark:text-gray-400'   },
 }
+
+const inp = 'w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -113,26 +111,34 @@ const REFRESH_INTERVAL_MS = 30_000
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { environments, activeEnvId } = useEnvironment()
   const [health, setHealth]       = useState<HealthData | null>(null)
-  const [requests, setRequests]   = useState<HttpRequestSummary[]>([])
   const [plans, setPlans]         = useState<TestPlanSummary[]>([])
   const [executions, setExecs]    = useState<Execution[]>([])
   const [reports, setReports]     = useState<ReportSummary[]>([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [showRunModal, setShowRunModal] = useState(false)
+  const [selectedPlan, setSelectedPlan] = useState('')
+  const [selectedEnvId, setSelectedEnvId] = useState('')
+  const [scheduleAt, setScheduleAt] = useState('')
+  const [runMode, setRunMode] = useState<ExecutionMode>('standard')
+  const [loadConcurrency, setLoadConcurrency] = useState('5')
+  const [loadDurationSeconds, setLoadDurationSeconds] = useState('30')
+  const [loadTotalIterations, setLoadTotalIterations] = useState('')
+  const [loadRampUpSeconds, setLoadRampUpSeconds] = useState('')
+  const [scheduling, setScheduling] = useState(false)
 
   const fetchAll = useCallback(async () => {
     try {
-      const [hRes, req, pl, ex, rep] = await Promise.all([
+      const [hRes, pl, ex, rep] = await Promise.all([
         api.get<HealthData>('/health').then(r => r.data).catch(() => null),
-        listRequests().catch(() => []),
         listTestPlans().catch(() => []),
         listExecutions().catch(() => []),
         listReports().catch(() => []),
       ])
       setHealth(hRes)
-      setRequests(req)
       setPlans(pl)
       setExecs(ex)
       setReports(rep)
@@ -167,7 +173,75 @@ export default function Dashboard() {
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
     .slice(0, 5)
 
-  const totalAssertions = requests.reduce((s, r) => s + r.assertion_count, 0)
+  const totalEmbeddedRequests = plans.reduce((sum, plan) => sum + plan.step_count, 0)
+  const recentPlans = [...plans]
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    .slice(0, 4)
+
+  const openRunModal = (planId?: string) => {
+    setSelectedPlan(planId ?? plans[0]?.id ?? '')
+    setSelectedEnvId(activeEnvId ?? '')
+    setScheduleAt('')
+    setRunMode('standard')
+    setLoadConcurrency('5')
+    setLoadDurationSeconds('30')
+    setLoadTotalIterations('')
+    setLoadRampUpSeconds('')
+    setError(null)
+    setShowRunModal(true)
+  }
+
+  const handleRun = async () => {
+    if (!selectedPlan) return
+    setScheduling(true)
+    try {
+      const payload: {
+        test_plan_id: string
+        scheduled_at?: string
+        environment_id?: string
+        mode?: ExecutionMode
+        load_test_config?: {
+          concurrency: number
+          duration_seconds?: number
+          total_iterations?: number
+          ramp_up_seconds?: number
+        }
+      } = {
+        test_plan_id: selectedPlan,
+        scheduled_at: scheduleAt ? new Date(scheduleAt).toISOString() : undefined,
+        environment_id: selectedEnvId || undefined,
+      }
+
+      if (runMode === 'load_test') {
+        const concurrency = Number(loadConcurrency)
+        const durationSeconds = Number(loadDurationSeconds)
+        const totalIterations = Number(loadTotalIterations)
+        const rampUpSeconds = Number(loadRampUpSeconds)
+        if (!Number.isFinite(concurrency) || concurrency <= 0) {
+          throw new Error('Load-test concurrency must be greater than 0')
+        }
+        if ((!Number.isFinite(durationSeconds) || durationSeconds <= 0) && (!Number.isFinite(totalIterations) || totalIterations <= 0)) {
+          throw new Error('Provide a load-test duration or total iterations')
+        }
+        payload.mode = 'load_test'
+        payload.load_test_config = {
+          concurrency,
+          duration_seconds: Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : undefined,
+          total_iterations: Number.isFinite(totalIterations) && totalIterations > 0 ? totalIterations : undefined,
+          ramp_up_seconds: Number.isFinite(rampUpSeconds) && rampUpSeconds > 0 ? rampUpSeconds : undefined,
+        }
+      }
+
+      await enqueueExecution(payload)
+      setShowRunModal(false)
+      setScheduleAt('')
+      await fetchAll()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to enqueue execution')
+    } finally {
+      setScheduling(false)
+    }
+  }
 
   return (
     <Layout>
@@ -182,13 +256,22 @@ export default function Dashboard() {
                 : 'Loading…'}
             </p>
           </div>
-          <button
-            onClick={() => void fetchAll()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-card"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openRunModal()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+            >
+              <PlayCircle className="w-4 h-4" />
+              Run Test Plan
+            </button>
+            <button
+              onClick={() => void fetchAll()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-card"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -202,10 +285,10 @@ export default function Dashboard() {
         <section>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
-              icon={<Globe className="w-5 h-5" />}
-              label="HTTP Requests"
-              value={loading ? <span className="skeleton h-8 w-16 rounded block" /> : requests.length}
-              sub={`${totalAssertions} assertions total`}
+              icon={<Link2 className="w-5 h-5" />}
+              label="Embedded Requests"
+              value={loading ? <span className="skeleton h-8 w-16 rounded block" /> : totalEmbeddedRequests}
+              sub={plans.length > 0 ? `across ${plans.length} test plans` : 'No plans yet'}
               gradient="bg-gradient-to-br from-indigo-500 to-indigo-700"
             />
             <KpiCard
@@ -300,43 +383,49 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* Request Library & Test Plans */}
+          {/* Plans & Active Executions */}
           <section className="space-y-4">
-            {/* Request Library */}
+            {/* Recent Test Plans */}
             <div>
-              <SectionHeader title="Request Library" href="/requests" navigate={navigate} />
+              <SectionHeader title="Recent Test Plans" href="/test-plans" navigate={navigate} />
               <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-card overflow-hidden">
                 {loading ? (
                   <div className="p-4 space-y-3">
                     {[1,2,3].map(i => <div key={i} className="skeleton h-9 rounded-lg" />)}
                   </div>
-                ) : requests.length === 0 ? (
+                ) : recentPlans.length === 0 ? (
                   <div className="p-6 text-center text-sm text-gray-400 dark:text-gray-500">
-                    <Globe className="w-7 h-7 mx-auto mb-1.5 opacity-30" />
-                    No requests yet
+                    <ClipboardList className="w-7 h-7 mx-auto mb-1.5 opacity-30" />
+                    No test plans yet
                   </div>
                 ) : (
                   <ul className="divide-y divide-gray-50 dark:divide-gray-800/80">
-                    {requests.slice(0, 4).map(req => (
+                    {recentPlans.map(plan => (
                       <li
-                        key={req.id}
-                        onClick={() => navigate(`/requests/${req.id}`)}
+                        key={plan.id}
+                        onClick={() => navigate(`/test-plans/${plan.id}/edit`)}
                         className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/60 cursor-pointer transition-colors"
                       >
-                        <span className={`shrink-0 text-[10px] font-bold text-white px-1.5 py-0.5 rounded ${METHOD_COLORS[req.method] ?? 'bg-gray-500'}`}>
-                          {req.method}
+                        <ClipboardList className="w-4 h-4 shrink-0 text-indigo-500" />
+                        <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{plan.name}</span>
+                        <span className="shrink-0 text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded-full">
+                          {plan.step_count} step{plan.step_count !== 1 ? 's' : ''}
                         </span>
-                        <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{req.name}</span>
-                        {req.assertion_count > 0 && (
-                          <span className="shrink-0 text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded-full">
-                            {req.assertion_count} assert
-                          </span>
-                        )}
+                        <button
+                          onClick={event => {
+                            event.stopPropagation()
+                            openRunModal(plan.id)
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20 transition-colors"
+                        >
+                          <PlayCircle className="w-3.5 h-3.5" />
+                          Run
+                        </button>
                       </li>
                     ))}
-                    {requests.length > 4 && (
+                    {plans.length > 4 && (
                       <li className="px-4 py-2 text-xs text-center text-gray-400 dark:text-gray-500">
-                        +{requests.length - 4} more
+                        +{plans.length - 4} more
                       </li>
                     )}
                   </ul>
@@ -414,6 +503,131 @@ export default function Dashboard() {
           </div>
         </section>
       </div>
+
+      {showRunModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-modal animate-slide-up">
+            <div className="px-6 pt-6 pb-5 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-[15px] font-semibold text-gray-900 dark:text-white">Run Test Plan</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Execute immediately or schedule for later</p>
+                </div>
+                <button
+                  onClick={() => setShowRunModal(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Test Plan</label>
+                <select value={selectedPlan} onChange={e => setSelectedPlan(e.target.value)} className={inp}>
+                  {plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Run Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setRunMode('standard')}
+                    className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                      runMode === 'standard'
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    Standard
+                  </button>
+                  <button
+                    onClick={() => setRunMode('load_test')}
+                    className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                      runMode === 'load_test'
+                        ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    Load Test
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5" />
+                  Environment
+                </label>
+                <select value={selectedEnvId} onChange={e => setSelectedEnvId(e.target.value)} className={inp}>
+                  <option value="">None (no environment)</option>
+                  {environments.map(environment => <option key={environment.id} value={environment.id}>{environment.name}</option>)}
+                </select>
+                {selectedEnvId && (
+                  <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-400">
+                    {Object.keys(environments.find(environment => environment.id === selectedEnvId)?.variables ?? {}).length} variable(s) will be injected
+                  </p>
+                )}
+              </div>
+              {runMode === 'load_test' && (
+                <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/10 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                    <Zap className="w-4 h-4" />
+                    <p className="text-sm font-semibold">Load profile</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">Concurrency</label>
+                      <input type="number" min="1" value={loadConcurrency} onChange={e => setLoadConcurrency(e.target.value)} className={inp} />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">Ramp Up (s)</label>
+                      <input type="number" min="0" value={loadRampUpSeconds} onChange={e => setLoadRampUpSeconds(e.target.value)} className={inp} placeholder="Optional" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">Duration (s)</label>
+                      <input type="number" min="0" value={loadDurationSeconds} onChange={e => setLoadDurationSeconds(e.target.value)} className={inp} placeholder="30" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">Total Iterations</label>
+                      <input type="number" min="0" value={loadTotalIterations} onChange={e => setLoadTotalIterations(e.target.value)} className={inp} placeholder="Optional" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-amber-700/80 dark:text-amber-300/80">
+                    Probe will run the same test plan concurrently and store one aggregate report with sampled iterations.
+                  </p>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
+                  Schedule (leave empty to run now)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={scheduleAt}
+                  onChange={e => setScheduleAt(e.target.value)}
+                  className={inp}
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => void handleRun()}
+                  disabled={scheduling || !selectedPlan}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+                >
+                  {scheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                  {scheduling ? 'Queuing…' : scheduleAt ? 'Schedule' : runMode === 'load_test' ? 'Start Load Test' : 'Run Now'}
+                </button>
+                <button
+                  onClick={() => setShowRunModal(false)}
+                  className="rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }

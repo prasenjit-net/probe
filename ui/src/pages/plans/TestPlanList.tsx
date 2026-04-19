@@ -29,11 +29,12 @@ const fmtDate = (iso: string) =>
 // ── PlanRow ──────────────────────────────────────────────────────────────────
 
 function PlanRow({
-  plan, collections, executing, onExecute, onDelete, onMoved,
+  plan, collections, executing, onOpen, onExecute, onDelete, onMoved,
 }: {
   plan: TestPlanSummary
   collections: CollectionSummary[]
   executing: string | null
+  onOpen: (p: TestPlanSummary) => void
   onExecute: (p: TestPlanSummary) => void
   onDelete: (p: TestPlanSummary) => void
   onMoved: (updated: TestPlanSummary) => void
@@ -63,7 +64,18 @@ function PlanRow({
   }
 
   return (
-    <div className="group flex items-center gap-3 rounded-lg bg-white dark:bg-gray-900 px-4 py-2.5 border border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all duration-100">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(plan)}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen(plan)
+        }
+      }}
+      className="group flex items-center gap-3 rounded-lg bg-white dark:bg-gray-900 px-4 py-2.5 border border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all duration-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+    >
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{plan.name}</p>
         {plan.description && (
@@ -79,7 +91,10 @@ function PlanRow({
         {/* Move to collection */}
         <div className="relative" ref={ref}>
           <button
-            onClick={() => setShowMove(v => !v)}
+            onClick={e => {
+              e.stopPropagation()
+              setShowMove(v => !v)
+            }}
             disabled={moving}
             className="inline-flex items-center rounded-md px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-200 transition-colors"
             title="Move to collection"
@@ -92,7 +107,10 @@ function PlanRow({
                 Move to collection
               </div>
               <button
-                onClick={() => handleMove(null)}
+                onClick={e => {
+                  e.stopPropagation()
+                  void handleMove(null)
+                }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
@@ -100,11 +118,14 @@ function PlanRow({
                 {!plan.collection_id && <Check className="w-3 h-3 ml-auto text-indigo-500" />}
               </button>
               {collections.map(col => (
-                <button
-                  key={col.id}
-                  onClick={() => handleMove(col.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
+                  <button
+                    key={col.id}
+                    onClick={e => {
+                      e.stopPropagation()
+                      void handleMove(col.id)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
                   <span className={`w-2 h-2 rounded-full shrink-0 ${pal(col.color).dot}`} />
                   <span className="truncate">{col.name}</span>
                   {plan.collection_id === col.id && <Check className="w-3 h-3 ml-auto text-indigo-500" />}
@@ -114,22 +135,21 @@ function PlanRow({
           )}
         </div>
         <button
-          onClick={() => onExecute(plan)}
+          onClick={e => {
+            e.stopPropagation()
+            onExecute(plan)
+          }}
           disabled={executing === plan.id}
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-50 transition-colors font-medium"
         >
           <Play className="w-3 h-3" fill="currentColor" />
           {executing === plan.id ? '…' : 'Run'}
         </button>
-        <Link
-          to={`/test-plans/${plan.id}/edit`}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300 transition-colors"
-        >
-          <Pencil className="w-3 h-3" />
-          Design
-        </Link>
         <button
-          onClick={() => onDelete(plan)}
+          onClick={e => {
+            e.stopPropagation()
+            onDelete(plan)
+          }}
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
         >
           <Trash2 className="w-3 h-3" />
@@ -143,12 +163,13 @@ function PlanRow({
 // ── CollectionGroup ──────────────────────────────────────────────────────────
 
 function CollectionGroup({
-  collection, items, collections, executing, onExecute, onDeleteCollection, onDeleteItem, onItemMoved,
+  collection, items, collections, executing, onOpen, onExecute, onDeleteCollection, onDeleteItem, onItemMoved,
 }: {
   collection: CollectionSummary
   items: TestPlanSummary[]
   collections: CollectionSummary[]
   executing: string | null
+  onOpen: (p: TestPlanSummary) => void
   onExecute: (p: TestPlanSummary) => void
   onDeleteCollection: (c: CollectionSummary) => void
   onDeleteItem: (p: TestPlanSummary) => void
@@ -245,6 +266,7 @@ function CollectionGroup({
                   plan={plan}
                   collections={collections}
                   executing={executing}
+                  onOpen={onOpen}
                   onExecute={onExecute}
                   onDelete={onDeleteItem}
                   onMoved={onItemMoved}
@@ -333,6 +355,7 @@ export default function TestPlanList() {
   }
 
   const handleExecute = async (plan: TestPlanSummary) => {
+    if (executing) return   // prevent double-enqueue while one is in flight
     setExecuting(plan.id)
     try {
       await enqueueExecution({ test_plan_id: plan.id, environment_id: activeEnvId ?? undefined })
@@ -451,6 +474,7 @@ export default function TestPlanList() {
                 items={grouped.get(col.id) ?? []}
                 collections={collections}
                 executing={executing}
+                onOpen={plan => navigate(`/test-plans/${plan.id}/edit`)}
                 onExecute={handleExecute}
                 onDeleteCollection={setDeleteColTarget}
                 onDeleteItem={setDeleteTarget}
@@ -468,6 +492,7 @@ export default function TestPlanList() {
                 <div className="p-2 space-y-1 bg-white dark:bg-gray-900/50">
                   {uncollected.map(plan => (
                     <PlanRow key={plan.id} plan={plan} collections={collections} executing={executing}
+                      onOpen={plan => navigate(`/test-plans/${plan.id}/edit`)}
                       onExecute={handleExecute} onDelete={setDeleteTarget} onMoved={handleItemMoved} />
                   ))}
                 </div>

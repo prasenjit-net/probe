@@ -9,8 +9,6 @@ import Spinner from './components/Spinner'
 
 const Dashboard        = lazy(() => import('./pages/Dashboard'))
 const Login            = lazy(() => import('./pages/Login'))
-const RequestList      = lazy(() => import('./pages/requests/RequestList'))
-const RequestDesigner  = lazy(() => import('./pages/requests/RequestDesigner'))
 const TestPlanList     = lazy(() => import('./pages/plans/TestPlanList'))
 const TestPlanDesigner = lazy(() => import('./pages/plans/TestPlanDesigner'))
 const ExecutionQueue   = lazy(() => import('./pages/executions/ExecutionQueue'))
@@ -20,6 +18,7 @@ const SpecList         = lazy(() => import('./pages/specs/SpecList'))
 const GeneratePreview  = lazy(() => import('./pages/specs/GeneratePreview'))
 const ArchivePage      = lazy(() => import('./pages/archive/ArchivePage'))
 const EnvironmentsPage = lazy(() => import('./pages/environments/EnvironmentsPage'))
+const WebhookGuidePage = lazy(() => import('./pages/webhooks/WebhookGuidePage'))
 
 const SLOW_THRESHOLD_MS = 5_000
 
@@ -46,9 +45,6 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/requests" element={<ProtectedRoute><RequestList /></ProtectedRoute>} />
-        <Route path="/requests/new" element={<ProtectedRoute><RequestDesigner /></ProtectedRoute>} />
-        <Route path="/requests/:id/edit" element={<ProtectedRoute><RequestDesigner /></ProtectedRoute>} />
         <Route path="/test-plans" element={<ProtectedRoute><TestPlanList /></ProtectedRoute>} />
         <Route path="/test-plans/new" element={<ProtectedRoute><TestPlanDesigner /></ProtectedRoute>} />
         <Route path="/test-plans/:id/edit" element={<ProtectedRoute><TestPlanDesigner /></ProtectedRoute>} />
@@ -59,6 +55,7 @@ function AppRoutes() {
         <Route path="/specs/:id/generate" element={<ProtectedRoute><GeneratePreview /></ProtectedRoute>} />
         <Route path="/archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
         <Route path="/environments" element={<ProtectedRoute><EnvironmentsPage /></ProtectedRoute>} />
+        <Route path="/webhooks" element={<ProtectedRoute><WebhookGuidePage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>

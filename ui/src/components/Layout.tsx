@@ -4,21 +4,21 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useEnvironment } from '../context/EnvironmentContext'
 import {
-  LayoutDashboard, Link2, ClipboardList, PlayCircle,
+  LayoutDashboard, ClipboardList, PlayCircle,
   BarChart2, LogOut, Sun, Moon, Menu, X, Zap, FileJson, Archive, Globe,
-  ChevronDown,
+  ChevronDown, Link2,
 } from 'lucide-react'
 
 interface LayoutProps { children: ReactNode }
 
 const navItems = [
   { to: '/dashboard',     label: 'Dashboard',      icon: LayoutDashboard, end: true },
-  { to: '/requests',      label: 'Requests',        icon: Link2 },
   { to: '/test-plans',    label: 'Test Plans',      icon: ClipboardList },
   { to: '/executions',    label: 'Executions',      icon: PlayCircle },
   { to: '/reports',       label: 'Reports',         icon: BarChart2 },
   { to: '/specs',         label: 'API Specs',       icon: FileJson },
   { to: '/environments',  label: 'Environments',    icon: Globe },
+  { to: '/webhooks',      label: 'Webhooks',        icon: Link2 },
   { to: '/archive',       label: 'Archives',        icon: Archive },
 ]
 
@@ -225,5 +225,3 @@ export default function Layout({ children }: LayoutProps) {
     </div>
   )
 }
-
-

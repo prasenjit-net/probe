@@ -1,6 +1,6 @@
 use crate::config::Config;
 use chrono::{DateTime, Utc};
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
@@ -48,6 +48,7 @@ pub struct Session {
 pub struct AppState {
     pub config: Config,
     pub sessions: Arc<DashMap<String, Session>>,
+    pub cancel_requests: Arc<DashSet<String>>,
     /// bcrypt hash of the configured plain-text password.
     pub password_hash: Arc<String>,
     pub start_time: DateTime<Utc>,
@@ -63,6 +64,7 @@ impl AppState {
         Self {
             config,
             sessions: Arc::new(DashMap::new()),
+            cancel_requests: Arc::new(DashSet::new()),
             password_hash: Arc::new(hash),
             start_time: Utc::now(),
             counters: Arc::new(AppCounters::default()),
@@ -79,5 +81,17 @@ impl AppState {
         let now = Utc::now();
         self.sessions.retain(|_, s| s.expires_at > now);
         self.sessions.len()
+    }
+
+    pub fn request_cancellation(&self, execution_id: &str) {
+        self.cancel_requests.insert(execution_id.to_string());
+    }
+
+    pub fn is_cancellation_requested(&self, execution_id: &str) -> bool {
+        self.cancel_requests.contains(execution_id)
+    }
+
+    pub fn clear_cancellation(&self, execution_id: &str) {
+        self.cancel_requests.remove(execution_id);
     }
 }

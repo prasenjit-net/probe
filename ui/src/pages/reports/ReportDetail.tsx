@@ -1,15 +1,42 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronLeft, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, AlertTriangle, Sparkles } from 'lucide-react'
+import { ChevronLeft, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, AlertTriangle, Sparkles, Zap } from 'lucide-react'
 import Layout from '../../components/Layout'
 import { getReport } from '../../api/client'
-import type { ExecutionReport, StepResult } from '../../types'
+import type { ExecutionReport, LoadTestIterationSample, StepResult } from '../../types'
 
 const fmtDuration = (ms: number) => ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
 const METHOD_COLORS: Record<string, string> = {
   GET: 'bg-emerald-500', POST: 'bg-blue-500', PUT: 'bg-amber-500',
   PATCH: 'bg-orange-500', DELETE: 'bg-red-500', HEAD: 'bg-purple-500', OPTIONS: 'bg-gray-500',
+}
+
+function SampleIterationCard({ sample }: { sample: LoadTestIterationSample }) {
+  const [open, setOpen] = useState(!sample.passed)
+  return (
+    <div className={`rounded-xl border ${sample.passed ? 'border-emerald-200 dark:border-emerald-800/40' : 'border-red-200 dark:border-red-800/40'} bg-white dark:bg-gray-900 overflow-hidden`}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+      >
+        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold ${sample.passed ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>
+          {sample.passed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+          {sample.passed ? 'Passed' : 'Failed'}
+        </span>
+        <span className="font-semibold text-sm text-gray-900 dark:text-white flex-1">
+          Iteration #{sample.iteration}
+        </span>
+        <span className="text-xs text-gray-400">{fmtDuration(sample.duration_ms)}</span>
+        {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+      </button>
+      {open && (
+        <div className="border-t border-gray-100 dark:border-gray-800 p-4 space-y-3 bg-gray-50/50 dark:bg-gray-900/50">
+          {sample.step_results.map((step, index) => <StepCard key={`${sample.iteration}-${step.step_id}`} step={step} index={index} />)}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function StepCard({ step, index }: { step: StepResult; index: number }) {
@@ -284,6 +311,13 @@ export default function ReportDetail() {
                     <Clock className="w-3.5 h-3.5" />
                     {new Date(report.started_at).toLocaleString()} · {fmtDuration(report.duration_ms)}
                   </p>
+                  {report.execution_mode === 'load_test' && report.load_test_summary && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 inline-flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5" />
+                      Load test · {report.load_test_summary.config.concurrency} vu
+                      {report.load_test_summary.cancelled ? ' · cancelled' : ''}
+                    </p>
+                  )}
                 </div>
                 <span className={`shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-sm ${
                   report.overall_status === 'passed'
@@ -302,15 +336,15 @@ export default function ReportDetail() {
               <div className="mt-5 grid grid-cols-3 sm:grid-cols-4 gap-4">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{report.total_steps}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Total</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{report.execution_mode === 'load_test' ? 'Iterations' : 'Total'}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{report.passed_steps}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Passed</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{report.execution_mode === 'load_test' ? 'Passed Iterations' : 'Passed'}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-red-500">{report.failed_steps}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Failed</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{report.execution_mode === 'load_test' ? 'Failed Iterations' : 'Failed'}</p>
                 </div>
                 <div className="hidden sm:block text-center">
                   <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{passRate}%</p>
@@ -351,17 +385,88 @@ export default function ReportDetail() {
               </div>
             )}
 
+            {report.execution_mode === 'load_test' && report.load_test_summary && (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
+                    <p className="text-xs uppercase tracking-widest text-gray-400 dark:text-gray-500 font-semibold">Requests</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{report.load_test_summary.total_requests}</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
+                    <p className="text-xs uppercase tracking-widest text-gray-400 dark:text-gray-500 font-semibold">Iter/s</p>
+                    <p className="mt-1 text-2xl font-bold text-indigo-600 dark:text-indigo-400">{report.load_test_summary.throughput_iterations_per_sec.toFixed(2)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
+                    <p className="text-xs uppercase tracking-widest text-gray-400 dark:text-gray-500 font-semibold">Req/s</p>
+                    <p className="mt-1 text-2xl font-bold text-indigo-600 dark:text-indigo-400">{report.load_test_summary.throughput_requests_per_sec.toFixed(2)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
+                    <p className="text-xs uppercase tracking-widest text-gray-400 dark:text-gray-500 font-semibold">P95 Iteration</p>
+                    <p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{fmtDuration(report.load_test_summary.p95_iteration_duration_ms)}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Per-step latency</h2>
+                  <div className="space-y-3">
+                    {report.load_test_summary.per_step.map(step => (
+                      <div key={step.step_id} className="rounded-xl border border-gray-100 dark:border-gray-800 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-sm text-gray-900 dark:text-white">{step.step_name}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                              {step.total_requests} requests · {step.failed_requests} failed
+                            </p>
+                          </div>
+                          <div className="text-right text-xs text-gray-500 dark:text-gray-400">
+                            <p>avg {fmtDuration(step.avg_duration_ms)}</p>
+                            <p>p95 {fmtDuration(step.p95_duration_ms)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {report.load_test_summary.error_counts.length > 0 && (
+                  <div className="rounded-2xl border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/10 p-5">
+                    <h2 className="text-sm font-semibold text-red-700 dark:text-red-300 mb-3">Top errors</h2>
+                    <div className="space-y-2">
+                      {report.load_test_summary.error_counts.map((error, index) => (
+                        <div key={`${error.step_id}-${index}`} className="flex items-start justify-between gap-3 rounded-xl bg-white/70 dark:bg-gray-900/40 px-3 py-2">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{error.step_name}</p>
+                            <p className="text-xs text-red-600 dark:text-red-400">{error.error}</p>
+                          </div>
+                          <span className="text-sm font-bold text-red-600 dark:text-red-400">{error.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {report.load_test_summary.sampled_iterations.length > 0 && (
+                  <div className="space-y-2">
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Sampled iterations</h2>
+                    {report.load_test_summary.sampled_iterations.map(sample => (
+                      <SampleIterationCard key={sample.iteration} sample={sample} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
             {/* Step results */}
-            <div className="space-y-2">
-              {report.step_results.map((step, i) => (
-                <StepCard key={step.step_id} step={step} index={i} />
-              ))}
-            </div>
+            {report.step_results.length > 0 && (
+              <div className="space-y-2">
+                {report.step_results.map((step, i) => (
+                  <StepCard key={step.step_id} step={step} index={i} />
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
     </Layout>
   )
 }
-
-

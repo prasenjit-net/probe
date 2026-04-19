@@ -56,3 +56,61 @@ html {
   animation: slideUp 0.2s ease-out;
 }
 
+.body-code-editor {
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+}
+
+.body-code-editor__textarea,
+.body-code-editor__pre {
+  min-height: 220px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5rem;
+}
+
+.body-code-editor__textarea {
+  outline: none;
+  color: #e2e8f0;
+  caret-color: #f8fafc;
+}
+
+.body-code-editor__textarea::selection {
+  background: rgba(99, 102, 241, 0.35);
+}
+
+.body-code-editor__pre {
+  margin: 0;
+  color: #e2e8f0;
+}
+
+.body-code-editor .token.property,
+.body-code-editor .token.attr-name {
+  color: #7dd3fc;
+}
+
+.body-code-editor .token.string,
+.body-code-editor .token.attr-value {
+  color: #86efac;
+}
+
+.body-code-editor .token.number {
+  color: #fbbf24;
+}
+
+.body-code-editor .token.boolean,
+.body-code-editor .token.null,
+.body-code-editor .token.keyword {
+  color: #c4b5fd;
+}
+
+.body-code-editor .token.punctuation {
+  color: #94a3b8;
+}
+
+.body-code-editor .token.error {
+  color: #fca5a5;
+}

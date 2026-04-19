@@ -9,6 +9,7 @@ pub mod reports;
 pub mod requests;
 pub mod specs;
 pub mod test_plans;
+pub mod webhooks;
 
 use crate::{embedded, state::AppState};
 use axum::{
@@ -84,6 +85,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/executions/{id}",
             get(executions::get_execution).delete(executions::cancel_execution),
         )
+        .route("/api/webhooks/trigger", post(webhooks::trigger_webhook))
         // ── Reports ───────────────────────────────────────────────────────────
         .route("/api/reports", get(reports::list_reports))
         .route(

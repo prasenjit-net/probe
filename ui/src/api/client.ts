@@ -6,7 +6,7 @@ import type {
   HealthData, MetricsData, MeData,
   SpecSummary, SpecRecord, GenerationPreview, ImportResult,
   Collection, CollectionSummary,
-  Environment,
+  Environment, ExecutionMode, LoadTestConfig,
 } from '../types'
 
 export const api = axios.create({
@@ -60,7 +60,13 @@ export const moveTestPlan = (id: string, collectionId: string | null) =>
 // ── Executions ────────────────────────────────────────────────────────────────
 export const listExecutions = () => api.get<Execution[]>('/executions').then(r => r.data)
 export const getExecution = (id: string) => api.get<Execution>(`/executions/${id}`).then(r => r.data)
-export const enqueueExecution = (data: { test_plan_id: string; scheduled_at?: string; environment_id?: string }) =>
+export const enqueueExecution = (data: {
+  test_plan_id: string
+  mode?: ExecutionMode
+  scheduled_at?: string
+  environment_id?: string
+  load_test_config?: LoadTestConfig
+}) =>
   api.post<Execution>('/executions', data).then(r => r.data)
 export const cancelExecution = (id: string) => api.delete(`/executions/${id}`)
 export const clearExecutions = () => api.delete<{ cleared: number }>('/executions').then(r => r.data)

@@ -34,7 +34,7 @@ pub async fn list_environments(State(state): State<AppState>, jar: CookieJar) ->
     }
     match storage::list::<Environment>(storage::environments_dir()).await {
         Ok(mut items) => {
-            items.sort_by(|a, b| a.name.cmp(&b.name));
+            items.sort_by_key(|item| item.name.clone());
             Json(items).into_response()
         }
         Err(e) => internal_error(e.to_string()),

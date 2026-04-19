@@ -47,7 +47,7 @@ cp config.example.toml config.toml
 make run
 ```
 
-Open `http://127.0.0.1:3000` and log in with the credentials from `config.toml` (default `admin` / `admin`).
+Open `http://127.0.0.1:7654` and log in with the credentials from `config.toml` (default `admin` / `admin`).
 
 ### Option B — manual steps
 
@@ -76,7 +76,7 @@ cd ui && npm run build && cd .. && cargo build --release
 make dev
 ```
 
-This starts both the Vite dev-server (port 5173, proxies `/api` → `:3000`) and the Rust backend via `cargo-watch` in parallel. Edit UI source files and see changes instantly without rebuilding the binary.
+This starts both the Vite dev-server (port 5173, proxies `/api` → `:7654`) and the Rust backend via `cargo-watch` in parallel. Edit UI source files and see changes instantly without rebuilding the binary.
 
 ```bash
 # Alternatively, run each in its own terminal:
@@ -114,7 +114,7 @@ Copy `config.example.toml` to `config.toml` and adjust as needed. The file is re
 ```toml
 [server]
 host = "127.0.0.1"   # bind address
-port = 3000          # bind port
+port = 7654          # bind port
 
 [auth]
 username = "admin"
@@ -140,7 +140,7 @@ max_tokens = 2000
 | Key | Default | Description |
 |-----|---------|-------------|
 | `server.host` | `127.0.0.1` | Bind address |
-| `server.port` | `3000` | Bind port |
+| `server.port` | `7654` | Bind port |
 | `auth.username` | `admin` | Login username |
 | `auth.password` | `admin` | Plain-text password; bcrypt-hashed at startup |
 | `session.ttl_seconds` | `3600` | Session lifetime in seconds |
@@ -174,7 +174,7 @@ data/
 
 ## API reference
 
-All endpoints under `/api/*` require a valid session cookie (`probe_session`) except login and health.
+All endpoints under `/api/*` require a valid session cookie (`probe_session`) except login, health, and the webhook trigger endpoint.
 
 ### Auth
 
@@ -219,10 +219,44 @@ All endpoints under `/api/*` require a valid session cookie (`probe_session`) ex
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET`  | `/api/executions` | List all executions |
-| `POST` | `/api/executions` | Enqueue `{ test_plan_id, scheduled_at? }` |
+| `POST` | `/api/executions` | Enqueue `{ test_plan_id, environment_id?, scheduled_at?, mode?, load_test_config?, environment_overrides? }` |
 | `GET`  | `/api/executions/:id` | Get execution status |
 | `DELETE` | `/api/executions/:id` | Cancel a queued/running execution |
 | `DELETE` | `/api/executions` | Clear all completed/failed/cancelled history |
+
+### Webhooks
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/webhooks/trigger` | ✗ | Trigger a standard execution from query params and/or `application/x-www-form-urlencoded` form data |
+
+Webhook reserved fields:
+
+- `test_plan` - required, accepts a test plan ID or exact name
+- `environment` - required, accepts an environment ID or exact name
+- `scheduled_at` - optional RFC 3339 timestamp for delayed execution
+
+Every other field is treated as an execution-only environment override. Stored environments are not mutated.
+
+If the same key is sent in both the query string and the form body, the form value wins.
+
+Examples:
+
+```bash
+curl -X POST "http://127.0.0.1:7654/api/webhooks/trigger?test_plan=plan-123&environment=env-123&customer_id=12345&region=us-east-1"
+```
+
+```bash
+curl -X POST "http://127.0.0.1:7654/api/webhooks/trigger" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "test_plan=plan-123" \
+  --data-urlencode "environment=env-123" \
+  --data-urlencode "scheduled_at=2026-04-19T09:30:00Z" \
+  --data-urlencode "customer_id=12345" \
+  --data-urlencode "region=us-east-1"
+```
+
+The UI also includes a **Webhooks** page with copyable examples built from your saved test plans and environments.
 
 ### Reports
 

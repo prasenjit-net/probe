@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BarChart2, Eye, Trash2, CheckCircle2, XCircle, Clock, Folder, FolderOpen, ChevronDown, ChevronRight } from 'lucide-react'
+import { BarChart2, Eye, Trash2, CheckCircle2, XCircle, Clock, Folder, FolderOpen, ChevronDown, ChevronRight, Zap } from 'lucide-react'
 import Layout from '../../components/Layout'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { listReports, deleteReport, listCollections } from '../../api/client'
@@ -63,12 +63,20 @@ function ReportRow({ r, onDelete }: { r: ReportSummary; onDelete: (id: string) =
           <Clock className="w-3 h-3" />
           {fmtDate(r.started_at)} · {fmtDuration(r.duration_ms)}
         </p>
+        {r.execution_mode === 'load_test' && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 inline-flex items-center gap-1">
+            <Zap className="w-3 h-3" />
+            Load test{r.load_test_concurrency ? ` · ${r.load_test_concurrency} vu` : ''}{r.load_test_total_iterations ? ` · ${r.load_test_total_iterations} iterations` : ''}
+          </p>
+        )}
       </div>
 
       {/* Pass rate */}
       <div className="w-36 hidden sm:block">
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">
-          {r.passed_steps}/{r.total_steps} passed
+          {r.execution_mode === 'load_test'
+            ? `${r.passed_steps}/${r.total_steps} iterations passed`
+            : `${r.passed_steps}/${r.total_steps} passed`}
         </p>
         <PassRateBar passed={r.passed_steps} total={r.total_steps} />
       </div>

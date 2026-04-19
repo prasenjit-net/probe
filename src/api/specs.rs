@@ -166,7 +166,7 @@ pub async fn list_specs(State(state): State<AppState>, jar: CookieJar) -> impl I
     }
     match storage::list::<SpecRecord>(storage::specs_dir()).await {
         Ok(mut items) => {
-            items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
             let summaries: Vec<SpecSummary> = items.iter().map(SpecSummary::from).collect();
             Json(summaries).into_response()
         }
@@ -309,21 +309,11 @@ pub async fn import_generation(
 
     let now = Utc::now();
 
-    // 0. Create two separate collections — one for requests, one for the plan
-    let req_collection_id = Uuid::new_v4().to_string();
+    // 0. Create a plan collection for the generated test plan
     let plan_collection_id = Uuid::new_v4().to_string();
     let collection_name = preview.plan_name.clone();
     let description = format!("AI-generated from OpenAPI spec ({})", preview.spec_id);
 
-    let req_collection = Collection {
-        id: req_collection_id.clone(),
-        name: collection_name.clone(),
-        description: description.clone(),
-        color: "indigo".to_string(),
-        kind: "request".to_string(),
-        created_at: now,
-        updated_at: now,
-    };
     let plan_collection = Collection {
         id: plan_collection_id.clone(),
         name: collection_name.clone(),
@@ -333,71 +323,45 @@ pub async fn import_generation(
         created_at: now,
         updated_at: now,
     };
-    for (cid, col) in [
-        (&req_collection_id, &req_collection),
-        (&plan_collection_id, &plan_collection),
-    ] {
-        if let Err(e) = storage::write(storage::collections_dir(), cid, col).await {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": format!("Failed to create collection: {e}")
-                })),
-            )
-                .into_response();
-        }
+    if let Err(e) = storage::write(
+        storage::collections_dir(),
+        &plan_collection_id,
+        &plan_collection,
+    )
+    .await
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": format!("Failed to create collection: {e}")
+            })),
+        )
+            .into_response();
     }
 
-    let mut saved_requests: Vec<HttpRequest> = Vec::new();
-
-    // 1. Save each generated request (assigned to the request collection)
-    for gen_req in &preview.requests {
-        let id = Uuid::new_v4().to_string();
-        let req = HttpRequest {
-            id: id.clone(),
-            name: gen_req.name.clone(),
-            description: gen_req.description.clone(),
-            method: gen_req.method.clone(),
-            url: gen_req.url.clone(),
-            headers: gen_req.headers.clone(),
-            body: gen_req.body.clone(),
-            body_type: gen_req.body_type.clone(),
-            assertions: gen_req.assertions.clone(),
-            input_variables: gen_req.input_variables.clone(),
-            extract_variables: gen_req.extract_variables.clone(),
-            collection_id: Some(req_collection_id.clone()),
-            created_at: now,
-            updated_at: now,
-        };
-        if let Err(e) = storage::write(storage::requests_dir(), &id, &req).await {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": format!("Failed to save request '{}': {}", gen_req.name, e)
-                })),
-            )
-                .into_response();
-        }
-        saved_requests.push(req);
-    }
-
-    // 2. Build test plan steps, resolving step_index → step UUID
+    // 1. Build test plan steps, resolving step_index → step UUID
     // First create step IDs for all steps upfront so we can resolve forward (though we forbid forward refs)
     let step_ids: Vec<String> = (0..preview.plan_steps.len())
         .map(|_| Uuid::new_v4().to_string())
         .collect();
 
-    // Build name → saved request map
-    let req_by_name: std::collections::HashMap<_, _> = saved_requests
-        .iter()
-        .map(|r| (r.name.as_str(), r))
-        .collect();
-
     let mut plan_steps: Vec<TestPlanStep> = Vec::new();
     for (step_idx, ps) in preview.plan_steps.iter().enumerate() {
-        let req = match req_by_name.get(ps.request_name.as_str()) {
-            Some(r) => *r,
-            None => continue, // skip if request not found
+        let req = HttpRequest {
+            id: Uuid::new_v4().to_string(),
+            name: ps.request.name.clone(),
+            description: ps.request.description.clone(),
+            method: ps.request.method.clone(),
+            url: ps.request.url.clone(),
+            headers: ps.request.headers.clone(),
+            body: ps.request.body.clone(),
+            body_type: ps.request.body_type.clone(),
+            assertions: ps.request.assertions.clone(),
+            input_variables: ps.request.input_variables.clone(),
+            extract_variables: ps.request.extract_variables.clone(),
+            collection_id: None,
+            created_at: now,
+            updated_at: now,
         };
 
         // Resolve variable mappings
@@ -440,15 +404,14 @@ pub async fn import_generation(
 
         plan_steps.push(TestPlanStep {
             id: step_ids[step_idx].clone(),
-            request_id: req.id.clone(),
+            request: req.clone(),
             name: ps.step_name.clone(),
             enabled: true,
-            extract_variables: req.extract_variables.clone(),
             variable_mappings,
         });
     }
 
-    // 3. Save test plan (assigned to the plan collection)
+    // 2. Save test plan (assigned to the plan collection)
     let plan_id = Uuid::new_v4().to_string();
     let plan = TestPlan {
         id: plan_id.clone(),
@@ -470,7 +433,7 @@ pub async fn import_generation(
             .into_response();
     }
 
-    // 4. Create an environment pre-loaded with base_url (and any other server variables)
+    // 3. Create an environment pre-loaded with base_url (and any other server variables)
     let env_id = Uuid::new_v4().to_string();
     let mut env_variables = std::collections::HashMap::new();
     if !preview.base_url.is_empty() {
@@ -495,10 +458,8 @@ pub async fn import_generation(
     (
         StatusCode::CREATED,
         Json(serde_json::json!({
-            "requests_created": saved_requests.len(),
             "test_plan_id": plan_id,
             "test_plan_name": plan.name,
-            "req_collection_id": req_collection_id,
             "plan_collection_id": plan_collection_id,
             "collection_name": collection_name,
             "environment_id": env_id,

@@ -6,7 +6,7 @@ import { useEnvironment } from '../context/EnvironmentContext'
 import {
   LayoutDashboard, ClipboardList, PlayCircle,
   BarChart2, LogOut, Sun, Moon, Menu, X, Zap, FileJson, Archive, Globe,
-  ChevronDown,
+  ChevronDown, Link2,
 } from 'lucide-react'
 
 interface LayoutProps { children: ReactNode }
@@ -18,6 +18,7 @@ const navItems = [
   { to: '/reports',       label: 'Reports',         icon: BarChart2 },
   { to: '/specs',         label: 'API Specs',       icon: FileJson },
   { to: '/environments',  label: 'Environments',    icon: Globe },
+  { to: '/webhooks',      label: 'Webhooks',        icon: Link2 },
   { to: '/archive',       label: 'Archives',        icon: Archive },
 ]
 
@@ -224,4 +225,3 @@ export default function Layout({ children }: LayoutProps) {
     </div>
   )
 }
-

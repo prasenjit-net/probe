@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Logical execution environment with a named variable map.
 /// Variables are injected as the lowest-priority seed before step mappings run.
@@ -260,6 +261,8 @@ pub struct Execution {
     #[serde(default)]
     pub environment_name: Option<String>,
     #[serde(default)]
+    pub environment_overrides: HashMap<String, String>,
+    #[serde(default)]
     pub load_test_config: Option<LoadTestConfig>,
 }
 
@@ -440,6 +443,8 @@ pub struct CreateExecution {
     pub scheduled_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub environment_id: Option<String>,
+    #[serde(default)]
+    pub environment_overrides: HashMap<String, String>,
     #[serde(default)]
     pub load_test_config: Option<LoadTestConfig>,
 }

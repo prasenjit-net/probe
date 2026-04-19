@@ -179,6 +179,13 @@ async fn load_environment_variables(exec: &Execution) -> HashMap<String, String>
             Err(e) => tracing::warn!("Could not load environment {env_id}: {e}"),
         }
     }
+    if !exec.environment_overrides.is_empty() {
+        tracing::debug!(
+            override_count = exec.environment_overrides.len(),
+            "Applying execution environment overrides"
+        );
+        variables.extend(exec.environment_overrides.clone());
+    }
     variables
 }
 

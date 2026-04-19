@@ -18,6 +18,7 @@ const SpecList         = lazy(() => import('./pages/specs/SpecList'))
 const GeneratePreview  = lazy(() => import('./pages/specs/GeneratePreview'))
 const ArchivePage      = lazy(() => import('./pages/archive/ArchivePage'))
 const EnvironmentsPage = lazy(() => import('./pages/environments/EnvironmentsPage'))
+const WebhookGuidePage = lazy(() => import('./pages/webhooks/WebhookGuidePage'))
 
 const SLOW_THRESHOLD_MS = 5_000
 
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="/specs/:id/generate" element={<ProtectedRoute><GeneratePreview /></ProtectedRoute>} />
         <Route path="/archive" element={<ProtectedRoute><ArchivePage /></ProtectedRoute>} />
         <Route path="/environments" element={<ProtectedRoute><EnvironmentsPage /></ProtectedRoute>} />
+        <Route path="/webhooks" element={<ProtectedRoute><WebhookGuidePage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>

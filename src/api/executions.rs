@@ -1,7 +1,8 @@
 use crate::{
     auth::check_session,
     models::{
-        CreateExecution, Execution, ExecutionMode, ExecutionStatus, LoadTestConfig, TestPlan,
+        CreateExecution, Environment, Execution, ExecutionMode, ExecutionStatus, LoadTestConfig,
+        TestPlan,
     },
     state::AppState,
     storage,
@@ -14,6 +15,7 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use chrono::Utc;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -65,6 +67,73 @@ fn validate_load_test_config(cfg: &LoadTestConfig) -> Result<(), &'static str> {
     Ok(())
 }
 
+fn json_error(status: StatusCode, message: impl Into<String>) -> (StatusCode, Json<Value>) {
+    (status, Json(json!({ "error": message.into() })))
+}
+
+pub(crate) async fn create_execution(
+    state: &AppState,
+    body: CreateExecution,
+) -> Result<Execution, (StatusCode, Json<Value>)> {
+    let plan = storage::read::<TestPlan>(storage::test_plans_dir(), &body.test_plan_id)
+        .await
+        .map_err(|_| json_error(StatusCode::NOT_FOUND, "Test plan not found"))?;
+
+    match body.mode {
+        ExecutionMode::Standard => {
+            if body.load_test_config.is_some() {
+                return Err(json_error(
+                    StatusCode::BAD_REQUEST,
+                    "load_test_config is only valid for load_test mode",
+                ));
+            }
+        }
+        ExecutionMode::LoadTest => {
+            let Some(cfg) = body.load_test_config.as_ref() else {
+                return Err(json_error(
+                    StatusCode::BAD_REQUEST,
+                    "load_test_config is required for load_test mode",
+                ));
+            };
+            if let Err(message) = validate_load_test_config(cfg) {
+                return Err(json_error(StatusCode::BAD_REQUEST, message));
+            }
+        }
+    }
+
+    let environment_name = if let Some(ref env_id) = body.environment_id {
+        storage::read::<Environment>(storage::environments_dir(), env_id)
+            .await
+            .ok()
+            .map(|e| e.name)
+    } else {
+        None
+    };
+
+    let execution = Execution {
+        id: Uuid::new_v4().to_string(),
+        test_plan_id: plan.id,
+        test_plan_name: plan.name,
+        status: ExecutionStatus::Queued,
+        mode: body.mode,
+        scheduled_at: body.scheduled_at,
+        created_at: Utc::now(),
+        started_at: None,
+        completed_at: None,
+        report_id: None,
+        environment_id: body.environment_id,
+        environment_name,
+        environment_overrides: body.environment_overrides,
+        load_test_config: body.load_test_config,
+    };
+
+    let _lock = state.execution_lock.lock().await;
+    let mut items = read_all(state).await;
+    items.push(execution.clone());
+    save_all(state, items).await;
+    Ok(execution)
+}
+
 // ── handlers ──────────────────────────────────────────────────────────────────
 
 pub async fn list_executions(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
@@ -93,76 +162,10 @@ pub async fn enqueue_execution(
         )
             .into_response();
     }
-    let plan = match storage::read::<TestPlan>(storage::test_plans_dir(), &body.test_plan_id).await
-    {
-        Ok(p) => p,
-        Err(_) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"error":"Test plan not found"})),
-            )
-                .into_response();
-        }
-    };
-
-    match body.mode {
-        ExecutionMode::Standard => {
-            if body.load_test_config.is_some() {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(serde_json::json!({"error":"load_test_config is only valid for load_test mode"})),
-                )
-                    .into_response();
-            }
-        }
-        ExecutionMode::LoadTest => {
-            let Some(cfg) = body.load_test_config.as_ref() else {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(serde_json::json!({"error":"load_test_config is required for load_test mode"})),
-                )
-                    .into_response();
-            };
-            if let Err(message) = validate_load_test_config(cfg) {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(serde_json::json!({"error": message})),
-                )
-                    .into_response();
-            }
-        }
+    match create_execution(&state, body).await {
+        Ok(execution) => (StatusCode::CREATED, Json(execution)).into_response(),
+        Err((status, body)) => (status, body).into_response(),
     }
-
-    // Optionally resolve the environment name for display purposes
-    let environment_name = if let Some(ref env_id) = body.environment_id {
-        storage::read::<crate::models::Environment>(storage::environments_dir(), env_id)
-            .await
-            .ok()
-            .map(|e| e.name)
-    } else {
-        None
-    };
-
-    let execution = Execution {
-        id: Uuid::new_v4().to_string(),
-        test_plan_id: plan.id,
-        test_plan_name: plan.name,
-        status: ExecutionStatus::Queued,
-        mode: body.mode,
-        scheduled_at: body.scheduled_at,
-        created_at: Utc::now(),
-        started_at: None,
-        completed_at: None,
-        report_id: None,
-        environment_id: body.environment_id,
-        environment_name,
-        load_test_config: body.load_test_config,
-    };
-    let _lock = state.execution_lock.lock().await;
-    let mut items = read_all(&state).await;
-    items.push(execution.clone());
-    save_all(&state, items).await;
-    (StatusCode::CREATED, Json(execution)).into_response()
 }
 
 pub async fn get_execution(

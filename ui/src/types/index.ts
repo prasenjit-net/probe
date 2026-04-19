@@ -340,7 +340,7 @@ export interface VarMappingPreview {
 }
 
 export interface PlanStepPreview {
-  request_name: string
+  request: GeneratedRequest
   step_name: string
   variable_mappings: VarMappingPreview[]
 }
@@ -361,17 +361,15 @@ export interface GeneratedRequest {
 export interface GenerationPreview {
   spec_id: string
   base_url?: string
-  requests: GeneratedRequest[]
   plan_name: string
   plan_description: string
   plan_steps: PlanStepPreview[]
 }
 
 export interface ImportResult {
-  requests_created: number
   test_plan_id: string
   test_plan_name: string
-  collection_id?: string
+  plan_collection_id?: string
   collection_name?: string
   environment_id?: string
   environment_name?: string

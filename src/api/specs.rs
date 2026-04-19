@@ -339,44 +339,29 @@ pub async fn import_generation(
             .into_response();
     }
 
-    let generated_requests: Vec<HttpRequest> = preview
-        .requests
-        .iter()
-        .map(|gen_req| HttpRequest {
-            id: Uuid::new_v4().to_string(),
-            name: gen_req.name.clone(),
-            description: gen_req.description.clone(),
-            method: gen_req.method.clone(),
-            url: gen_req.url.clone(),
-            headers: gen_req.headers.clone(),
-            body: gen_req.body.clone(),
-            body_type: gen_req.body_type.clone(),
-            assertions: gen_req.assertions.clone(),
-            input_variables: gen_req.input_variables.clone(),
-            extract_variables: gen_req.extract_variables.clone(),
-            collection_id: None,
-            created_at: now,
-            updated_at: now,
-        })
-        .collect();
-
     // 1. Build test plan steps, resolving step_index → step UUID
     // First create step IDs for all steps upfront so we can resolve forward (though we forbid forward refs)
     let step_ids: Vec<String> = (0..preview.plan_steps.len())
         .map(|_| Uuid::new_v4().to_string())
         .collect();
 
-    // Build name → generated request map
-    let req_by_name: std::collections::HashMap<_, _> = generated_requests
-        .iter()
-        .map(|r| (r.name.as_str(), r))
-        .collect();
-
     let mut plan_steps: Vec<TestPlanStep> = Vec::new();
     for (step_idx, ps) in preview.plan_steps.iter().enumerate() {
-        let req = match req_by_name.get(ps.request_name.as_str()) {
-            Some(r) => (*r).clone(),
-            None => continue, // skip if request not found
+        let req = HttpRequest {
+            id: Uuid::new_v4().to_string(),
+            name: ps.request.name.clone(),
+            description: ps.request.description.clone(),
+            method: ps.request.method.clone(),
+            url: ps.request.url.clone(),
+            headers: ps.request.headers.clone(),
+            body: ps.request.body.clone(),
+            body_type: ps.request.body_type.clone(),
+            assertions: ps.request.assertions.clone(),
+            input_variables: ps.request.input_variables.clone(),
+            extract_variables: ps.request.extract_variables.clone(),
+            collection_id: None,
+            created_at: now,
+            updated_at: now,
         };
 
         // Resolve variable mappings
@@ -473,7 +458,6 @@ pub async fn import_generation(
     (
         StatusCode::CREATED,
         Json(serde_json::json!({
-            "requests_created": generated_requests.len(),
             "test_plan_id": plan_id,
             "test_plan_name": plan.name,
             "plan_collection_id": plan_collection_id,

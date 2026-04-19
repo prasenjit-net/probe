@@ -601,8 +601,8 @@ pub struct VarMappingPreview {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanStepPreview {
-    /// Must match the `name` of one of the requests in `GenerationPreview.requests`.
-    pub request_name: String,
+    /// Embedded request definition for this generated step.
+    pub request: GeneratedRequest,
     /// Optional override for the step display name.
     pub step_name: String,
     pub variable_mappings: Vec<VarMappingPreview>,
@@ -618,7 +618,6 @@ pub struct GenerationPreview {
     /// and so the UI can display it to the user.
     #[serde(default)]
     pub base_url: String,
-    pub requests: Vec<GeneratedRequest>,
     pub plan_name: String,
     pub plan_description: String,
     pub plan_steps: Vec<PlanStepPreview>,

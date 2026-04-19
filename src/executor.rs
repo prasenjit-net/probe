@@ -185,15 +185,10 @@ async fn load_environment_variables(exec: &Execution) -> HashMap<String, String>
 async fn load_executable_steps(plan: &TestPlan) -> Vec<ExecutableStep> {
     let mut steps = Vec::new();
     for step in plan.steps.iter().filter(|s| s.enabled) {
-        let (request, load_error) =
-            match storage::read::<HttpRequest>(storage::requests_dir(), &step.request_id).await {
-                Ok(request) => (Some(request), None),
-                Err(e) => (None, Some(format!("Request definition not found: {e}"))),
-            };
         steps.push(ExecutableStep {
             step: step.clone(),
-            request,
-            load_error,
+            request: Some(step.request.clone()),
+            load_error: None,
         });
     }
     steps
@@ -730,6 +725,26 @@ pub async fn execute_step(
     }
     // Substitute {{variable}} placeholders in URL, headers, and body
     let url = substitute_vars(&req_def.url, variables);
+    if let Some(unresolved) = first_unresolved_placeholder(&url) {
+        return StepResult {
+            step_id: step_id.to_string(),
+            request_name: req_def.name.clone(),
+            request: RequestSnapshot {
+                method: req_def.method.to_string(),
+                url,
+                headers: vec![],
+                body: req_def.body.clone(),
+            },
+            response: None,
+            assertion_results: vec![],
+            passed: false,
+            error: Some(format!(
+                "Unresolved variable in request URL: {unresolved}. Select an environment or provide a mapping/default value."
+            )),
+            input_variables,
+            output_variables: vec![],
+        };
+    }
 
     let mut headers_snapshot: Vec<KeyValue> = Vec::new();
     let mut req_builder = match req_def.method {
@@ -869,6 +884,12 @@ fn substitute_vars(input: &str, vars: &HashMap<String, String>) -> String {
         result = result.replace(&format!("{{{{{k}}}}}"), v);
     }
     result
+}
+
+fn first_unresolved_placeholder(input: &str) -> Option<String> {
+    let start = input.find("{{")?;
+    let end = input[start + 2..].find("}}")?;
+    Some(input[start + 2..start + 2 + end].trim().to_string())
 }
 
 fn evaluate_assertion(

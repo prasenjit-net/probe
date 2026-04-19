@@ -415,7 +415,7 @@ export default function GeneratePreview() {
                   Import successful!
                 </p>
                 <p className="text-sm text-emerald-700 dark:text-emerald-400">
-                  {preview?.requests.length ?? 0} requests saved · Test plan "{imported.plan_name}" created
+                  {preview?.requests.length ?? 0} embedded requests added · Test plan "{imported.plan_name}" created
                 </p>
               </div>
             </div>
@@ -435,22 +435,22 @@ export default function GeneratePreview() {
                   </p>
                 </div>
               </div>
-            )}
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => navigate('/requests')}
-                className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 dark:border-emerald-600 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
-              >
-                <Settings2 className="w-4 h-4" />
-                View Requests
-              </button>
-              <button
-                onClick={() => navigate(`/test-plans/${imported.plan_id}/edit`)}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-medium text-white transition-colors"
-              >
-                <ListTree className="w-4 h-4" />
-                Open Test Plan
-              </button>
+              )}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => navigate(`/test-plans/${imported.plan_id}/edit`)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-medium text-white transition-colors"
+                >
+                  <ListTree className="w-4 h-4" />
+                  Open Test Plan
+                </button>
+                <button
+                  onClick={() => navigate('/test-plans')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 dark:border-emerald-600 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                >
+                  <Settings2 className="w-4 h-4" />
+                  View Test Plans
+                </button>
               <button
                 onClick={() => navigate('/executions')}
                 className="inline-flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"

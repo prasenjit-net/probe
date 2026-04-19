@@ -1,6 +1,8 @@
 use crate::{
     auth::check_session,
-    models::{CreateTestPlan, HttpRequest, MoveToCollection, TestPlan, TestPlanSummary},
+    models::{
+        CreateTestPlan, HttpRequest, MoveToCollection, TestPlan, TestPlanStep, TestPlanSummary,
+    },
     state::AppState,
     storage,
 };
@@ -13,6 +15,33 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use chrono::Utc;
 use uuid::Uuid;
+
+fn derive_step_name(step_name: &str, request: &HttpRequest, index: usize) -> String {
+    if !step_name.trim().is_empty() {
+        return step_name.to_string();
+    }
+    if !request.name.trim().is_empty() {
+        return request.name.clone();
+    }
+    if !request.url.trim().is_empty() {
+        return format!("{:?} {}", request.method, request.url);
+    }
+    format!("Step {}", index + 1)
+}
+
+fn normalize_steps(steps: &[TestPlanStep]) -> Vec<TestPlanStep> {
+    steps
+        .iter()
+        .enumerate()
+        .map(|(index, step)| TestPlanStep {
+            id: step.id.clone(),
+            request: step.request.clone(),
+            name: derive_step_name(&step.name, &step.request, index),
+            enabled: step.enabled,
+            variable_mappings: step.variable_mappings.clone(),
+        })
+        .collect()
+}
 
 pub async fn list_test_plans(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if check_session(&state, &jar).is_none() {
@@ -48,22 +77,14 @@ pub async fn create_test_plan(
         )
             .into_response();
     }
-    // Validate all referenced request IDs exist
-    for step in &body.steps {
-        if !storage::item_exists(storage::requests_dir(), &step.request_id) {
-            return (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(serde_json::json!({"error": format!("Request '{}' not found", step.request_id)})),
-            ).into_response();
-        }
-    }
+    let steps = normalize_steps(&body.steps);
     let now = Utc::now();
     let plan = TestPlan {
         id: Uuid::new_v4().to_string(),
         name: body.name,
         description: body.description,
         collection_id: body.collection_id,
-        steps: body.steps,
+        steps,
         created_at: now,
         updated_at: now,
     };
@@ -90,34 +111,7 @@ pub async fn get_test_plan(
             .into_response();
     }
     match storage::read::<TestPlan>(storage::test_plans_dir(), &id).await {
-        Ok(plan) => {
-            // Enrich steps with request details
-            let mut enriched_steps = Vec::new();
-            for step in &plan.steps {
-                let req = storage::read::<HttpRequest>(storage::requests_dir(), &step.request_id)
-                    .await
-                    .ok();
-                enriched_steps.push(serde_json::json!({
-                    "id": step.id,
-                    "request_id": step.request_id,
-                    "name": step.name,
-                    "enabled": step.enabled,
-                    "extract_variables": step.extract_variables,
-                    "variable_mappings": step.variable_mappings,
-                    "request": req,
-                }));
-            }
-            let response = serde_json::json!({
-                "id": plan.id,
-                "name": plan.name,
-                "description": plan.description,
-                "collection_id": plan.collection_id,
-                "steps": enriched_steps,
-                "created_at": plan.created_at,
-                "updated_at": plan.updated_at,
-            });
-            Json(response).into_response()
-        }
+        Ok(plan) => Json(plan).into_response(),
         Err(_) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"error":"Not found"})),
@@ -149,21 +143,13 @@ pub async fn update_test_plan(
                 .into_response();
         }
     };
-    // Validate referenced request IDs
-    for step in &body.steps {
-        if !storage::item_exists(storage::requests_dir(), &step.request_id) {
-            return (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(serde_json::json!({"error": format!("Request '{}' not found", step.request_id)})),
-            ).into_response();
-        }
-    }
+    let steps = normalize_steps(&body.steps);
     let updated = TestPlan {
         id: existing.id,
         name: body.name,
         description: body.description,
         collection_id: body.collection_id,
-        steps: body.steps,
+        steps,
         created_at: existing.created_at,
         updated_at: Utc::now(),
     };

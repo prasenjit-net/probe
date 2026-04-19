@@ -188,10 +188,9 @@ pub struct ResolvedVariable {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestPlanStep {
     pub id: String,
-    pub request_id: String,
+    pub request: HttpRequest,
     pub name: String,
     pub enabled: bool,
-    pub extract_variables: Vec<ExtractVariable>,
     /// Explicit mappings for input placeholders in this step's request.
     #[serde(default)]
     pub variable_mappings: Vec<VariableMapping>,

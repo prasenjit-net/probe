@@ -119,16 +119,13 @@ export interface ResolvedVariable {
 
 export interface TestPlanStep {
   id: string
-  request_id: string
+  request: HttpRequest
   name: string
   enabled: boolean
-  extract_variables: ExtractVariable[]
   variable_mappings: VariableMapping[]
 }
 
-export interface TestPlanStepEnriched extends TestPlanStep {
-  request?: HttpRequest
-}
+export type TestPlanStepEnriched = TestPlanStep
 
 export interface TestPlan {
   id: string
